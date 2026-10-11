@@ -18,14 +18,10 @@ try{
   await send('Browser.setDownloadBehavior',{behavior:'allow',downloadPath:dir});
   await send('Page.enable');await send('Page.navigate',{url});await wait(`document.readyState==='complete'`);
   assert.equal(await evaluate(`!!document.querySelector('[data-mode="ocr"]')`),true,'Text + vectors mode must exist');
-  await evaluate(`(async()=>{const c=document.createElement('canvas');c.width=1000;c.height=420;const x=c.getContext('2d');x.fillStyle='white';x.fillRect(0,0,1000,420);for(const [left,color,label] of [[70,'#e2eafa','Input'],[400,'#eceafb','Model'],[730,'#e4f2eb','Output']]){x.fillStyle=color;x.fillRect(left,150,200,120);x.fillStyle='#202436';x.font='36px Arial';x.fillText(label,left+35,225);}x.strokeStyle='#606890';x.lineWidth=3;for(const left of [275,605]){x.beginPath();x.moveTo(left,210);x.lineTo(left+110,210);x.stroke();}const blob=await new Promise(r=>c.toBlob(r));const dt=new DataTransfer();dt.items.add(new File([blob],'ocr-diagram.png',{type:'image/png'}));document.querySelector('#file-input').files=dt.files;document.querySelector('#file-input').dispatchEvent(new Event('change',{bubbles:true}));})()`);
+  // Identical original PNG bytes on macOS/Linux; canvas-generated fonts differ across hosts.
+  const {png}=JSON.parse(await fs.readFile(new URL('./fixtures/ocr-mixed.json',import.meta.url),'utf8'));
+  await evaluate(`(()=>{const dt=new DataTransfer();dt.items.add(new File([Uint8Array.from(atob('${png}'),c=>c.charCodeAt(0))],'ocr-diagram.png',{type:'image/png'}));document.querySelector('#file-input').files=dt.files;document.querySelector('#file-input').dispatchEvent(new Event('change',{bubbles:true}));})()`);
   await wait(`document.querySelector('#status').textContent.includes('ready')`);
-  if(language.includes('chi_sim')){
-    // A small original raster fixture makes recognition independent of CI's CJK fonts.
-    const {png}=JSON.parse(await fs.readFile(new URL('./fixtures/ocr-mixed.json',import.meta.url),'utf8'));
-    await evaluate(`document.querySelector('#status').textContent='Loading mixed-script fixture';(()=>{const dt=new DataTransfer();dt.items.add(new File([Uint8Array.from(atob('${png}'),c=>c.charCodeAt(0))],'ocr-diagram.png',{type:'image/png'}));document.querySelector('#file-input').files=dt.files;document.querySelector('#file-input').dispatchEvent(new Event('change',{bubbles:true}));})()`);
-    await wait(`document.querySelector('#status').textContent.includes('ready')`);
-  }
   await evaluate(`document.querySelector('#ocr-language').value=${JSON.stringify(language)}`);
   await evaluate(`document.querySelector('[data-mode="ocr"]').click();document.querySelector('#convert').click()`);
   assert.match(await evaluate(`document.querySelector('#status').textContent`),/allow|download/i,'OCR must need explicit runtime-download consent');
@@ -36,6 +32,8 @@ try{
   for(const word of ['Input','Model','Output'])assert.ok(words.includes(word),`Real OCR recognizes ${word}: ${words}`);
   if(language.includes('chi_sim'))assert.ok(words.join('').includes('多模态模型'),`Chinese recognition: ${words}`);
   if(language.includes('chi_sim'))assert.equal(await evaluate(`[...document.querySelectorAll('[data-ocr-text]')].filter(x=>/[多模态型]/.test(x.value)).every(x=>document.querySelector('[data-ocr-select="'+x.dataset.ocrText+'"]').checked)`),true,'Adjacent Chinese characters stay eligible for native text');
+  const labels=await evaluate(`[...document.querySelectorAll('[data-ocr-text]')].map(x=>({text:x.value,disabled:document.querySelector('[data-ocr-select="'+x.dataset.ocrText+'"]').disabled,score:x.parentElement.querySelector('small').textContent}))`);
+  assert.equal(labels.find(x=>x.text==='Model')?.disabled,false,`Test label must be replaceable: ${JSON.stringify(labels)}`);
   await evaluate(`const input=[...document.querySelectorAll('[data-ocr-text]')].find(x=>x.value==='Model');input.value='Encoder';input.dispatchEvent(new Event('input',{bubbles:true}));const check=document.querySelector('[data-ocr-select="'+input.dataset.ocrText+'"]');check.checked=true;check.dispatchEvent(new Event('change',{bubbles:true}));document.querySelector('#ocr-build').click()`);
   await wait(`document.querySelector('#status').textContent.includes('editable text')`);
   assert.equal(await evaluate(`document.querySelector('#result-svg').textContent.includes('Encoder')`),true);
