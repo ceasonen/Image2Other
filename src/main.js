@@ -51,7 +51,7 @@ function status(message,error=false){$('#status').textContent=message;$('#status
 function saveHistory(){if(state.scene){state.history.push(JSON.stringify(state.scene));if(state.history.length>30)state.history.shift();}$('#undo').disabled=!state.history.length;}
 function setBusy(value){state.busy=value;$('#convert').disabled=value||!state.source;$('#convert').classList.toggle('loading',value);$('#cancel').hidden=!value;$('#replace-file').disabled=value;$('#try-sample').disabled=value;
   document.querySelectorAll('#ocr-options input,#ocr-options select,#ocr-review input,#ocr-build,#ocr-review-export,[data-mode]').forEach(el=>el.disabled=value);
-  for(const el of document.querySelectorAll('[data-ocr-select]'))el.disabled=value||!state.ocr?.words.find(w=>w.id===el.dataset.ocrSelect)?.safeBackground;
+  for(const el of document.querySelectorAll('[data-ocr-select]')){const word=state.ocr?.words.find(w=>w.id===el.dataset.ocrSelect);el.disabled=value||!word?.safeBackground||!!word.replacementBlock;}
   for(const id of ['export-svg','export-pptx','export-json','add-text','toggle-layers'])$('#'+id).disabled=value||!state.scene;
 }
 function download(blob,name){const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);}
@@ -136,7 +136,7 @@ function renderOcrReview(){
   $('#ocr-words').innerHTML=state.ocr.words.map(w=>{
     const c=document.createElement('canvas');c.width=w.box.width+8;c.height=w.box.height+8;
     c.getContext('2d').drawImage(state.ocr.canvas,w.box.x-4,w.box.y-4,c.width,c.height,0,0,c.width,c.height);
-    return `<div class="ocr-word${w.confidence<85?' uncertain':''}"><label><input type="checkbox" data-ocr-select="${w.id}" ${w.selected?'checked':''} ${w.safeBackground?'':'disabled'}/>Replace</label><img src="${c.toDataURL()}" alt="Source crop for ${escapeXml(w.originalText)}"/><input data-ocr-text="${w.id}" value="${escapeXml(w.text)}" maxlength="500" aria-label="Correct recognized word ${escapeXml(w.originalText)}"/><small>${w.confidence.toFixed(0)} · ${!w.safeBackground?'mixed background · kept':w.confidence<85?'check carefully':'review label'}</small></div>`;
+    return `<div class="ocr-word${w.confidence<85?' uncertain':''}"><label><input type="checkbox" data-ocr-select="${w.id}" ${w.selected?'checked':''} ${w.safeBackground&&!w.replacementBlock?'':'disabled'}/>Replace</label><img src="${c.toDataURL()}" alt="Source crop for ${escapeXml(w.originalText)}"/><input data-ocr-text="${w.id}" value="${escapeXml(w.text)}" maxlength="500" aria-label="Correct recognized word ${escapeXml(w.originalText)}"/><small>${w.confidence.toFixed(0)} · ${w.replacementBlock==='crossing-stroke'?'crossing stroke · kept':!w.safeBackground?'mixed background · kept':w.confidence<85?'check carefully':'review label'}</small></div>`;
   }).join('')||'<p>No text found. Try another layout, a sharper image, or outline-only tracing.</p>';
   $('#ocr-build').disabled=!state.ocr.words.length;
 }
@@ -201,7 +201,7 @@ $('#open-example').onclick=()=>{saveHistory();showScene(sampleScene);status('Edi
 $('#convert').onclick=convert;$('#cancel').onclick=()=>{state.controller?.abort();state.cancelTrace?.();};
 $('#ocr-build').onclick=buildOcr;
 $('#ocr-words').oninput=e=>{const w=state.ocr?.words.find(w=>w.id===e.target.dataset.ocrText);if(w)w.text=e.target.value;};
-$('#ocr-words').onchange=e=>{const w=state.ocr?.words.find(w=>w.id===e.target.dataset.ocrSelect);if(w&&w.safeBackground)w.selected=e.target.checked;};
+$('#ocr-words').onchange=e=>{const w=state.ocr?.words.find(w=>w.id===e.target.dataset.ocrSelect);if(w&&w.safeBackground&&!w.replacementBlock)w.selected=e.target.checked;};
 $('#ocr-review-export').onclick=async()=>{if(!state.ocr)return;const {reviewData}=await import('./ocr-core.js');download(new Blob([JSON.stringify(reviewData(state.ocr.words,state.ocr.canvas.width,state.ocr.canvas.height,state.ocr.language),null,2)],{type:'application/json'}),outputName(state.file.name,'ocr-review.json'));};
 document.querySelectorAll('[data-mode]').forEach(button=>button.onclick=()=>setMode(button.dataset.mode));
 $('#settings').onclick=()=>$('#ai-dialog').showModal();$('#clear-key').onclick=()=>{$('#api-key').value='';$('#api-endpoint').value='';$('#api-model').value='';$('#ai-consent').checked=false;};

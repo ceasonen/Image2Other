@@ -9,7 +9,7 @@ Checked 2026-10-12. Primary paper/project sources only. This is an engineering r
 | StarVector: Generating Scalable Vector Graphics Code from Images and Text | [CVPR 2025 paper](https://openaccess.thecvf.com/content/CVPR2025/papers/Rodriguez_StarVector_Generating_Scalable_Vector_Graphics_Code_from_Images_and_Text_CVPR_2025_paper.pdf), [author's repository](https://github.com/joanrod/star-vector) | Structured primitives and text matter for meaningful editing, not just pixel similarity | Motivates the semantic scene route. No weights downloaded or model integrated; the app uses the user's compatible provider |
 | Towards Layer-wise Image Vectorization | [arXiv record](https://arxiv.org/abs/2206.04655), [CVPR 2022 authors' code](https://github.com/Picsart-AI-Research/LIVE-Layerwise-Image-Vectorization) | Layer structure and path count should be considered alongside visual appearance | Research reference only; no optimization pipeline copied or claimed |
 | OmniSVG: A Unified Scalable Vector Graphics Generation Model | [NeurIPS 2025 proceedings](https://papers.nips.cc/paper_files/paper/2025/hash/a510f05a574d4203ef3952973672fe2f-Abstract-Conference.html), [authors' project](https://github.com/OmniSVG/OmniSVG) | Image-to-SVG models are another future provider route | Research reference only; no weights, data, or code copied |
-| Image-to-PPT | [Maintainer's repository](https://github.com/7zSun/Image-to-PPT), Apache-2.0 | OCR/layout/detection/segmentation can offer a local semantic reconstruction route | Workflow reference only. Our initial app does not implement or advertise this pipeline |
+| Image-to-PPT | [Maintainer's repository](https://github.com/7zSun/Image-to-PPT), Apache-2.0 | OCR/layout/detection/segmentation can offer a local semantic reconstruction route | Workflow reference only; no pipeline copied. Our browser OCR/masking route does not implement its detection/segmentation stack |
 | FigEdit | [Maintainer's repository](https://github.com/giszzt/figedit), MIT with upstream notices | SVG-to-PPTX should create native individual objects, with honest fallback reporting | Workflow reference only; no exporter copied |
 | PptxGenJS | [Official repository](https://github.com/gitbrent/PptxGenJS), [native-shape documentation](https://gitbrent.github.io/PptxGenJS/docs/api-shapes.html), [maintainer's custom geometry example](https://github.com/gitbrent/PptxGenJS/blob/master/demos/modules/demo_shape.mjs) | Native custom geometry can retain multiple contours and quadratic/cubic curves | Used as a pinned npm dependency. Our scene-to-native-shape adapter is original |
 
@@ -17,6 +17,7 @@ Checked 2026-10-12. Primary paper/project sources only. This is an engineering r
 
 ```text
 Local raster input
+  ├─ consent + local OCR → review → guarded masking + trace + native text ─┐
   ├─ ImageTracerJS worker → validated paths ─┐
   ├─ consent + user's vision API → scene ──┼─ shared scene editor → SVG / native PPTX / JSON
   └─ browser canvas → PNG / JPEG / WebP    │
@@ -35,9 +36,9 @@ The scene schema accepts only rectangles, ellipses, lines, text, and absolute M/
 
 Unit tests inspect the generated PPTX ZIP/XML for native text and custom geometry, multiple subpaths, quadratic curves, and absence of raster media. Browser tests run tracing on an authored raster sample, inspect actual downloaded vector files, edit a scene label, export each implemented format, and check five responsive widths and a very narrow image. Both the native-shape example and actual traced-path PPTX were opened and rendered with LibreOffice for release QA; this is not a check of every PowerPoint version. Provider request/response handling is tested with mocks, not a live model. These establish functionality; they do not measure reconstruction accuracy on general images.
 
-The document workspace also has unit and browser checks for actual PDF/PPTX downloads, native text-box XML, text removal from editable-slide backgrounds, page counts/rotation, merge, and PPTX text/media extraction. These check supported formats, not perfect conversion fidelity. PDF artwork remains raster in both PDF-to-slide modes; scanned text requires an OCR system not included here. Word/Excel conversions, Office-to-PDF rendering, encrypted files, and PDF compression are not implemented.
+The document workspace also has unit and browser checks for actual PDF/PPTX downloads, native text-box XML, text removal from editable-slide backgrounds, page counts/rotation, merge, and PPTX text/media extraction. These check supported formats, not perfect conversion fidelity. PDF artwork remains raster in both PDF-to-slide modes; a scanned page can be sent to the figure studio's local OCR, but bulk scan OCR/searchable-PDF export is not implemented. Word/Excel conversions, Office-to-PDF rendering, encrypted files, and PDF compression are not implemented.
 
-No third-party model weights or large datasets were downloaded. Eight source-only reference repositories were cloned into an ignored local research workspace for inspection. They are not shipped as conversion backends. No quantitative comparison or superiority claim is supported yet.
+No large research-model weights or datasets were downloaded. The browser OCR uses small Tesseract language resources, described in the README. Eight source-only reference repositories were cloned into an ignored local research workspace for inspection. They are not shipped as conversion backends. No general benchmark comparison or superiority claim is supported yet.
 
 ## Research scope update
 
@@ -85,7 +86,7 @@ When text or circles become many paths, visual resemblance does not imply useful
 3. Diagnose rendered discrepancies and propose limited changes, with a visible diff and undo. Existing refinement systems make this an engineering improvement until a distinct mechanism is demonstrated.
 4. Keep strict-vector and future hybrid reconstruction separate. Hybrid assets can be valuable, but the interface must disclose which elements are text, native shapes, paths, or pixels. The current scene remains strict-vector; arbitrary SVG/HTML from papers cannot be imported safely as-is.
 
-These are priorities for later implementation, not newly shipped features. Read component/model licenses and attribution terms before reusing code or assets; a repository license does not automatically cover weights, datasets, trademarks, or every dependency.
+Text-first OCR/review/native-text export is now implemented with a conservative background/crossing-stroke gate. Grouping, attached connectors and semantic local repair remain future work. Read component/model licenses and attribution terms before reusing code or assets; a repository license does not automatically cover weights, datasets, trademarks, or every dependency.
 
 ## Candidate research questions, not established innovations
 
@@ -110,4 +111,4 @@ Every method should receive the same raster inputs and predefined edits, such as
 
 Treat the original diagram as the independent unit: repeated runs and multiple edits are nested measurements, not extra independent samples. Randomize processing order with a recorded seed, distribute methods across API sessions, and blind manual output checks. Separately record label correctness, directed connectivity, unaffected-object preservation, visual error, latency/cost, and native PPTX object validity. Include clean-source exports as a positive control for the edit/export checks.
 
-Continue only if recurring failures survive strong simple alternatives and the proposed mechanism addresses them without sacrificing correctness elsewhere. Otherwise narrow the product scope or abandon that research hypothesis. No diagnostic experiment has been run yet; no training, model-weight download, or large-data transfer is authorized by this plan.
+Continue only if recurring failures survive strong simple alternatives and the proposed mechanism addresses them without sacrificing correctness elsewhere. Otherwise narrow the product scope or abandon that research hypothesis. No real-figure downstream-edit evaluation has been run yet. A nine-case developer masking diagnostic now isolates rectangle-removal damage with supplied labels/boxes; it is not OCR inference, a held-out benchmark or evidence of the selective-learning hypothesis. See the [engineering/research contract](development-contract.md) for actual observations, known failures and the staged experimental design. No training, large model-weight download, or large-data transfer is authorized by this plan.

@@ -65,3 +65,31 @@ test('complete label lines take precedence over clipped per-character OCR boxes'
   const data={blocks:[{paragraphs:[{lines:[{text:'多 模 态 模型',confidence:94,bbox:{x0:10,y0:10,x1:90,y1:30},words:[{text:'模',confidence:92,bbox:{x0:35,y0:10,x1:45,y1:30}}]}]}]}]};
   const labels=ocrWords(data,100,50);assert.equal(labels.length,1);assert.equal(labels[0].text,'多模态模型');assert.equal(labels[0].box.width,80);assert.equal(labels[0].confidence,92);
 });
+for(const axis of ['horizontal','vertical'])test(`a thin ${axis} stroke crossing a flat label box is kept, not erased`,async()=>{
+  const {ocrWords,prepareWords,maskWords,appendOcrText}=await core();const original=image();
+  for(let n=0;n<(axis==='horizontal'?100:50);n++){
+    const x=axis==='horizontal'?n:15,y=axis==='horizontal'?12:n,i=(y*100+x)*4;
+    original.data[i]=original.data[i+1]=original.data[i+2]=20;
+  }
+  const words=prepareWords(ocrWords(result,100,50),original);
+  assert.ok(words[0].flatness>=.9,'Reproduce the old flat-background heuristic accepting a thin crossing stroke');
+  assert.equal(words[0].selected,false,'High OCR confidence must not authorize erasing a crossing line');
+  assert.equal(words[0].replacementBlock,'crossing-stroke');
+  words[0].selected=true; // Even a stale/programmatically checked checkbox must not bypass protection.
+  assert.deepEqual(maskWords(original,words).data,original.data);
+  assert.equal(appendOcrText({width:100,height:50,nodes:[]},words,100,50).nodes.length,0);
+});
+test('opposing boundary specks at different positions are not a straight crossing stroke',async()=>{
+  const {ocrWords,prepareWords}=await core();const original=image();
+  for(const [x,y] of [[8,12],[9,12],[50,27],[51,27]]){const i=(y*100+x)*4;original.data[i]=original.data[i+1]=original.data[i+2]=20;}
+  assert.equal(prepareWords(ocrWords(result,100,50),original)[0].selected,true);
+});
+test('review exports label edits as unverified observations, with reasons for refused replacement',async()=>{
+  const {ocrWords,prepareWords,reviewData}=await core();const original=image();
+  for(let x=0;x<100;x++){const i=(12*100+x)*4;original.data[i]=original.data[i+1]=original.data[i+2]=20;}
+  const words=prepareWords(ocrWords(result,100,50),original);words[0].text='Encoder';
+  const out=reviewData(words,100,50,'eng');
+  assert.equal(out.version,2);assert.equal(out.annotationStatus,'unverified');
+  assert.equal(out.words[0].textChangeKind,'unspecified');
+  assert.equal(out.words[0].replacementBlock,'crossing-stroke');assert.equal(out.words[0].replace,false);
+});

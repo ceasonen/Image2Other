@@ -19,6 +19,17 @@ export function ocrWords(data,width,height){
 const rgbHex=rgb=>'#'+rgb.map(v=>Math.round(v).toString(16).padStart(2,'0')).join('');
 const distance=(a,b)=>Math.max(...a.map((v,i)=>Math.abs(v-b[i])));
 function pixel(image,x,y){const i=(y*image.width+x)*4,a=image.data[i+3]/255;return [...image.data.slice(i,i+3)].map(v=>Math.round(v*a+255*(1-a)));}
+// Conservative axis-aligned stroke check, not connector/semantic recovery.
+// A flat perimeter alone can miss a one-pixel line passing through a label.
+function crossingStroke(image,b,bg,neighbors){
+  const ink=(x,y)=>x>=0&&y>=0&&x<image.width&&y<image.height&&
+    !neighbors.some(w=>x>=w.box.x&&x<w.box.x+w.box.width&&y>=w.box.y&&y<w.box.y+w.box.height)&&distance(pixel(image,x,y),bg)>70;
+  for(let y=b.y;y<b.y+b.height;y++)if(ink(b.x-2,y)&&ink(b.x-1,y)&&ink(b.x+b.width,y)&&ink(b.x+b.width+1,y)&&
+    [.25,.5,.75].every(f=>ink(b.x+Math.floor((b.width-1)*f),y)))return true;
+  for(let x=b.x;x<b.x+b.width;x++)if(ink(x,b.y-2)&&ink(x,b.y-1)&&ink(x,b.y+b.height)&&ink(x,b.y+b.height+1)&&
+    [.25,.5,.75].every(f=>ink(x,b.y+Math.floor((b.height-1)*f))))return true;
+  return false;
+}
 export function prepareWords(words,image){
   return words.map(word=>{
     const b=word.box,edge=[],alphas=[],bins=new Map();
@@ -34,13 +45,14 @@ export function prepareWords(words,image){
     const backgroundAlpha=alphas.sort((a,b)=>a-b)[Math.floor(alphas.length/2)]??255;
     const flatness=edge.length?edge.filter(c=>distance(c,bg)<32).length/edge.length:0;
     const safeBackground=flatness>=.9&&alphas.filter(a=>Math.abs(a-backgroundAlpha)<24).length/Math.max(1,alphas.length)>=.9;
+    const replacementBlock=!safeBackground?'mixed-background':crossingStroke(image,b,bg,neighbors)?'crossing-stroke':null;
     const ink=[],step=Math.max(1,Math.ceil(Math.sqrt(b.width*b.height/4096)));
     for(let y=b.y;y<b.y+b.height;y+=step)for(let x=b.x;x<b.x+b.width;x+=step){const c=pixel(image,x,y);if(distance(c,bg)>70)ink.push(c);}
     const fg=ink.length?[0,1,2].map(i=>ink.map(c=>c[i]).sort((a,b)=>a-b)[Math.floor(ink.length/2)]):[32,36,54];
-    return {...word,background:rgbHex(bg),backgroundAlpha,fill:rgbHex(fg),flatness,safeBackground,selected:word.confidence>=OCR_THRESHOLD&&safeBackground};
+    return {...word,background:rgbHex(bg),backgroundAlpha,fill:rgbHex(fg),flatness,safeBackground,replacementBlock,selected:word.confidence>=OCR_THRESHOLD&&!replacementBlock};
   });
 }
-function replacements(words){return words.filter(w=>w.selected&&w.safeBackground&&w.text.trim());}
+function replacements(words){return words.filter(w=>w.selected&&w.safeBackground&&!w.replacementBlock&&w.text.trim());}
 export function maskWords(image,words){
   const out={width:image.width,height:image.height,data:new Uint8ClampedArray(image.data)};
   for(const word of replacements(words)){
@@ -57,5 +69,5 @@ export function appendOcrText(scene,words,width,height){
   if(scene.nodes.length+text.length>MAX_NODES)throw Error('Too many layers. Trace with fewer colors or simplify detail.');
   return validateScene({...scene,engine:'ocr-trace',nodes:[...scene.nodes,...text]});
 }
-export function reviewData(words,width,height,language){return {version:1,engine:'tesseract-lstm',language,width,height,trainedClassifier:false,
-  words:words.map(w=>({originalText:w.originalText,correctedText:w.text,confidence:w.confidence,box:w.box,flatness:w.flatness,replace:replacements([w]).length===1}))};}
+export function reviewData(words,width,height,language){return {version:2,engine:'tesseract-lstm',language,width,height,trainedClassifier:false,annotationStatus:'unverified',
+  words:words.map(w=>({originalText:w.originalText,correctedText:w.text,textChangeKind:w.text===w.originalText?'unchanged':'unspecified',confidence:w.confidence,box:w.box,flatness:w.flatness,replacementBlock:w.replacementBlock??null,replace:replacements([w]).length===1}))};}

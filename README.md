@@ -46,12 +46,13 @@ Text + vectors needs no API key and does not upload images. AI rebuild is an opt
 
 ### OCR behavior and limits
 
-Tesseract.js 7 / Tesseract LSTM runs in a browser worker, using English or English + Simplified Chinese. Recognition uses up to a 2× working image, capped at a 2,400-pixel edge / 4 megapixels, independently of the 768-pixel artwork trace. Choose diagram, document or single-block segmentation. Confidence 85 is a review heuristic, **not** an 85% correctness guarantee. High-confidence words on consistent flat backgrounds are preselected; uncertain words need explicit checking. Mixed-background boxes cannot be erased by this first version. Unselected text remains traced artwork. Masking may remove overlapping artwork inside a selected word box: inspect the preview and leave that word unselected if needed. Fonts, size and placement are approximate. Handwriting, equations, rotated labels and very small text are not guaranteed. Transparent artwork backgrounds are retained.
+Tesseract.js 7 / Tesseract LSTM runs in a browser worker, using English or English + Simplified Chinese. Recognition uses up to a 2× working image, capped at a 2,400-pixel edge / 4 megapixels, independently of the 768-pixel artwork trace. Choose diagram, document or single-block segmentation. Confidence 85 is a review heuristic, **not** an 85% correctness guarantee. High-confidence labels on consistent flat backgrounds are preselected; uncertain labels need explicit checking. Mixed-background boxes and detected axis-aligned strokes crossing a box are kept, with a refusal reason in the review. This conservative check is not semantic connector recovery: diagonal strokes and artwork contained inside a box can still be erased. Unselected text remains traced artwork. Inspect the preview and leave an unsafe label unselected. Fonts, size and placement are approximate. Handwriting, equations, rotated labels and very small text are not guaranteed. Transparent artwork backgrounds are retained.
 
-Export review JSON saves OCR observations, corrections, boxes and replace decisions locally. These can become future calibration/training data, but no XGBoost classifier is trained or bundled. Real-browser tests recognize authored raster words, correct one and verify actual SVG text/path and native PPTX text/vector downloads; this is not a general OCR accuracy benchmark.
+Export review JSON v2 saves unverified OCR observations, local text edits, boxes, refusal reasons and replace decisions. A rename is not automatically an OCR correction; these logs are not ground-truth training labels. No XGBoost classifier is trained or bundled. Real-browser tests recognize authored raster words, edit one and verify actual SVG text/path and native PPTX text/vector downloads; this is not a general OCR accuracy benchmark.
 
 ```sh
 npm test
+npm run diagnose:ocr
 npm run build
 npm run preview
 ```
@@ -86,6 +87,8 @@ The independent repository publishes at `https://ceasonen.github.io/Image2Other/
 Vite's base path is `/Image2Other/`. Change it in `vite.config.js` if you fork the project under another name. Do not copy the application source into your personal homepage repository. Build output lives in `dist/`; dependencies and local test outputs are ignored.
 
 ## Development direction
+
+The [shared engineering/research contract](docs/development-contract.md) defines acceptance criteria and the next controlled experiments. The small masking diagnostic deliberately exposes both improvements and remaining failures; it does not claim end-to-end accuracy. Reliable text reconstruction comes before adding more conversion buttons.
 
 Next work includes evaluating stronger OCR engines (e.g. PaddleOCR), learning/calibrating replacement decisions on annotated figures, Office rendering through an opt-in local service and complex-artwork preservation. These are not implemented. XGBoost is a possible lightweight confidence/region gate once annotations exist, not an OCR recognizer. Contributions should include licensed examples, expected elements and actual output.
 
