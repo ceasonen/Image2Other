@@ -2,7 +2,8 @@
 // No downloads, model inference, training or user files.
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {prepareWords,maskWords,appendOcrText,OCR_THRESHOLD} from '../src/ocr-core.js';
+import {prepareWords,maskWords,appendOcrText,reviewEraseMask,OCR_THRESHOLD} from '../src/ocr-core.js';
+import {proposeProtectedRuns} from '../src/ocr-mask.js';
 
 function fixture(id){
   const width=160,height=96,data=new Uint8ClampedArray(width*height*4).fill(255);
@@ -36,19 +37,35 @@ function measure(input,words){
   let outsideBoxChangedPixels=0;const b=input.label.box;
   for(let y=0;y<height;y++)for(let x=0;x<width;x++)if(x<b.x||x>=b.x+b.width||y<b.y||y>=b.y+b.height)outsideBoxChangedPixels+=Number(changed(y*width+x));
   const scene=appendOcrText({width,height,nodes:[]},words,width,height),text=scene.nodes.find(n=>n.type==='text');
+  const glyphRemoval=changedCount(input.glyphs)/Math.max(1,input.glyphs.size),artworkChangedPixels=changedCount(input.artwork);
   return {replaced:!!text,nativeLabelCorrect:text?text.text===input.expectedText:null,
-    glyphRemoval:changedCount(input.glyphs)/Math.max(1,input.glyphs.size),artworkChangedPixels:changedCount(input.artwork),outsideBoxChangedPixels};
+    glyphRemoval,artworkChangedPixels,outsideBoxChangedPixels,
+    // Mechanism check only: placement/font recovery and downstream relations are not scored.
+    completeLabelRecovery:!!text&&text.text===input.expectedText&&glyphRemoval===1&&artworkChangedPixels===0};
+}
+function referenceRuns(input){
+  const b=input.label.box,runs=[];
+  // Known authored provenance: keep everything except recoverable text-only pixels.
+  // Shared glyph/artwork pixels stay intact; this information is unavailable to the app.
+  for(let y=0;y<b.height;y++)for(let x=0;x<b.width;x++)if(!input.glyphs.has((y+b.y)*input.image.width+x+b.x)){
+    const x0=x;while(x+1<b.width&&!input.glyphs.has((y+b.y)*input.image.width+x+1+b.x))x++;
+    runs.push({y,x0,x1:x});
+  }
+  return runs;
 }
 export function runMaskDiagnostic(){
   const ids=['clean','transparent','low-confidence','confident-wrong-label','horizontal-crossing','vertical-crossing','internal-rule','diagonal-crossing','mixed-background'];
-  return {version:1,stage:'masking-with-supplied-labels',ocrInferenceRun:false,generalAccuracyClaim:false,
+  return {version:2,stage:'masking-with-supplied-labels',ocrInferenceRun:false,generalAccuracyClaim:false,componentCandidateApproval:'simulated-not-user-study',referenceControl:'supplied-pixel-ownership-flat-background-only',
     scope:'Nine developer-designed counterexamples, not independent samples or a held-out benchmark.',
     cases:ids.map(id=>{
       const input=fixture(id),words=prepareWords([input.label],input.image);
       // Reconstruct the prior flat-perimeter decision; same pixels/labels/threshold/export.
       const legacy=words.map(w=>({...w,replacementBlock:null,selected:w.confidence>=OCR_THRESHOLD&&w.safeBackground}));
+      // Simulated approval, NOT an automatic product result or an upper bound.
+      const candidate=words.map(w=>w.safeBackground&&w.confidence>=OCR_THRESHOLD?reviewEraseMask(w,[],proposeProtectedRuns(input.image,w).runs):w);
+      const reference=words.map(w=>w.safeBackground&&w.confidence>=OCR_THRESHOLD?reviewEraseMask(w,[],referenceRuns(input)):w);
       return {id,flatness:words[0].flatness,replacementBlock:words[0].replacementBlock,
-        legacy:measure(input,legacy),guarded:measure(input,words)};
+        legacy:measure(input,legacy),guarded:measure(input,words),componentCandidate:measure(input,candidate),referenceOwnership:measure(input,reference)};
     })};
 }
 if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url)){
@@ -58,7 +75,9 @@ if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.ur
     console.log(report.scope+' Supplied labels isolate masking; this does not test OCR.');
     console.table(report.cases.map(c=>({case:c.id,'legacy replace':c.legacy.replaced,'guard replace':c.guarded.replaced,
       'legacy artwork pixels changed':c.legacy.artworkChangedPixels,'guard artwork pixels changed':c.guarded.artworkChangedPixels,
-      'guard glyph removal':c.guarded.glyphRemoval,'guard native label correct':c.guarded.nativeLabelCorrect,reason:c.replacementBlock??'review'})));
-    console.log('Refusal protects artwork but leaves text as outlines. Internal/diagonal strokes and confident wrong labels remain failures.');
+      'candidate artwork changed':c.componentCandidate.artworkChangedPixels,'candidate glyph removal':c.componentCandidate.glyphRemoval,
+      'candidate complete label':c.componentCandidate.completeLabelRecovery,'reference complete label':c.referenceOwnership.completeLabelRecovery,
+      'guard native label correct':c.guarded.nativeLabelCorrect,reason:c.replacementBlock??'review'})));
+    console.log('Component candidate assumes supplied labels and simulated mask approval. Reference control uses unavailable authored pixel ownership on flat backgrounds. Joined glyphs and confident wrong labels remain failures; this is not a user study or end-to-end accuracy.');
   }
 }

@@ -23,4 +23,20 @@ test('shared masking diagnostic reports collateral edits, refusal and known blin
   assert.equal(rows.get('confident-wrong-label').guarded.nativeLabelCorrect,false);
   assert.equal(rows.get('confident-wrong-label').guarded.replaced,true,'High-confidence wrong text remains a separate failure');
   for(const c of report.cases)for(const method of ['legacy','guarded'])assert.equal(c[method].outsideBoxChangedPixels,0);
+  assert.equal(report.componentCandidateApproval,'simulated-not-user-study');
+  for(const id of ['horizontal-crossing','vertical-crossing','internal-rule']){
+    assert.equal(rows.get(id).componentCandidate.artworkChangedPixels,0);
+    assert.equal(rows.get(id).componentCandidate.glyphRemoval,1);
+    assert.equal(rows.get(id).componentCandidate.replaced,true);
+  }
+  assert.equal(rows.get('diagonal-crossing').componentCandidate.artworkChangedPixels,0);
+  assert.ok(rows.get('diagonal-crossing').componentCandidate.glyphRemoval<1,'Joined text must remain an explicit failure, not a perfect score');
+  assert.equal(rows.get('diagonal-crossing').componentCandidate.completeLabelRecovery,false);
+  assert.equal(rows.get('horizontal-crossing').guarded.completeLabelRecovery,false,'Refusal cannot pass the joint recovery check');
+  assert.equal(report.referenceControl,'supplied-pixel-ownership-flat-background-only');
+  for(const id of ['clean','transparent','horizontal-crossing','vertical-crossing','internal-rule','diagonal-crossing']){
+    assert.equal(rows.get(id).referenceOwnership.completeLabelRecovery,true,'Reference pixel ownership isolates the removal bottleneck');
+    assert.equal(rows.get(id).referenceOwnership.artworkChangedPixels,0);
+  }
+  assert.equal(rows.get('confident-wrong-label').referenceOwnership.completeLabelRecovery,false,'Perfect ownership cannot fix wrong supplied text');
 });

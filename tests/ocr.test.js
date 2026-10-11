@@ -93,3 +93,35 @@ test('review exports label edits as unverified observations, with reasons for re
   assert.equal(out.words[0].textChangeKind,'unspecified');
   assert.equal(out.words[0].replacementBlock,'crossing-stroke');assert.equal(out.words[0].replace,false);
 });
+test('an explicitly reviewed mask replaces text without clearing a protected crossing',async()=>{
+  const {ocrWords,prepareWords,maskWords,appendOcrText,reviewEraseMask,reviewData}=await core();
+  assert.equal(typeof reviewEraseMask,'function','Mask approval must be an explicit operation');
+  const original=image();for(let x=0;x<100;x++){const i=(12*100+x)*4;original.data[i]=original.data[i+1]=original.data[i+2]=20;}
+  const word=prepareWords(ocrWords(result,100,50),original)[0];
+  const reviewed=reviewEraseMask(word,[{mode:'keep',radius:.5,points:[{x:0,y:2},{x:39,y:2}]}]);
+  reviewed.text='Encoder';const masked=maskWords(original,[reviewed]);
+  for(let x=0;x<100;x++)assert.equal(masked.data[(12*100+x)*4],20);
+  assert.equal(masked.data[(20*100+30)*4],255,'Old glyph pixels outside the protected stroke disappear');
+  assert.equal(appendOcrText({width:100,height:50,nodes:[]},[reviewed],100,50).nodes[0].text,'Encoder');
+  const log=reviewData([reviewed],100,50,'eng');assert.equal(log.words[0].maskReview.userConfirmed,true);
+  assert.equal(log.words[0].replacementBlock,'crossing-stroke','Keep the original diagnostic reason');
+  assert.equal(log.annotationStatus,'unverified','User approval is not benchmark ground truth');
+});
+test('mixed backgrounds cannot become eligible merely by approving a mask',async()=>{
+  const {reviewEraseMask}=await core();assert.equal(typeof reviewEraseMask,'function');
+  assert.throws(()=>reviewEraseMask({safeBackground:false,box:{width:10,height:10}},[]),/background/i);
+});
+test('confirmed protection survives another selected label overlapping its box, in either order',async()=>{
+  const {maskWords,reviewEraseMask}=await core(),original=image();
+  for(let x=10;x<50;x++)original.data.set([20,20,20,255],(12*100+x)*4);
+  const word={text:'Model',safeBackground:true,selected:true,background:'#ffffff',backgroundAlpha:255,box:{x:10,y:10,width:40,height:20}};
+  const protectedWord=reviewEraseMask(word,[{mode:'keep',radius:.5,points:[{x:0,y:2},{x:39,y:2}]}]);
+  const overlapping={...word,text:'Label',box:{x:20,y:11,width:20,height:12}};
+  for(const words of [[protectedWord,overlapping],[overlapping,protectedWord]]){
+    const masked=maskWords(original,words);
+    for(let x=10;x<50;x++)assert.equal(masked.data[(12*100+x)*4],20,'Other selected boxes must not erase explicitly protected artwork');
+    assert.equal(masked.data[(20*100+30)*4],255);
+  }
+  protectedWord.selected=false;
+  assert.equal(maskWords(original,[protectedWord,overlapping]).data[(12*100+30)*4],255,'Unselected masks do not change the active conversion');
+});

@@ -2,6 +2,9 @@ import './style.css';
 import {escapeXml,validateScene,sceneToSvg,outputName} from './scene.js';
 import {SCENE_PROMPT,rebuildImage,parseSceneResponse} from './ai.js';
 import {mountFileStudio} from './file-studio.js';
+import {canReplaceWord,reviewEraseMask,maskWords,appendOcrText,reviewData} from './ocr-core.js';
+import {MAX_MASK_PIXELS} from './ocr-mask.js';
+import {mountMaskEditor} from './mask-editor.js';
 
 const icon=(name)=>{
   const paths={upload:'M12 16V4m-4 4 4-4 4 4M4 16v4h16v-4',arrow:'M5 12h14m-5-5 5 5-5 5',image:'M4 4h16v16H4z M4 16l5-5 4 4 3-3 4 4 M8 8h.01',layers:'m12 3 9 5-9 5-9-5 9-5m-9 9 9 5 9-5m-18 5 9 5 9-5',spark:'m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5L12 3',download:'M12 3v12m-4-4 4 4 4-4M4 17v4h16v-4',lock:'M6 10h12v11H6z M8 10V7a4 4 0 0 1 8 0v3',github:'M9 19c-4 1-4-2-6-2m12 5v-4c0-1-.3-2-1-2 3 0 6-2 6-6 0-2-1-3-1-4 0-1 0-2-1-3-2 0-3 1-4 1-2-1-4-1-6 0-1-1-2-1-4-1-1 1-1 2-1 3-1 1-1 2-1 4 0 4 3 6 6 6-1 0-1 1-1 2v4',settings:'M4 7h16M4 17h16M8 4v6M16 14v6',check:'m5 12 4 4L19 6',close:'m6 6 12 12M6 18 18 6',code:'m8 7-5 5 5 5m8-10 5 5-5 5m-3-12-2 14',undo:'M8 4 3 9l5 5M3 9h11a6 6 0 0 1 0 12',plus:'M12 4v16M4 12h16'};
@@ -34,6 +37,13 @@ document.querySelector('#app').innerHTML=`
 $('[data-mode="trace"]').insertAdjacentHTML('beforebegin','<button class="mode" data-mode="ocr" role="tab" aria-selected="false">'+icon('code')+'Text + vectors<span>OCR</span></button>');
 $('#trace-options').insertAdjacentHTML('afterend',`<div id="ocr-options" hidden><label>Language<select id="ocr-language"><option value="eng">English</option><option value="eng+chi_sim">English + 简体中文</option></select></label><label>Layout<select id="ocr-layout"><option value="11">Diagram labels</option><option value="3">Document / columns</option><option value="6">One text block</option></select></label><label class="ocr-consent"><input id="ocr-download-consent" type="checkbox"/>Allow OCR download · no image upload</label></div>`);
 $('.edit-bar').insertAdjacentHTML('beforebegin',`<section id="ocr-review" class="ocr-review" hidden aria-labelledby="ocr-review-title"><div class="ocr-review-heading"><div><h3 id="ocr-review-title">Check the words. Keep the figure.</h3><p>Selected words become editable text. Unselected regions stay as traced outlines. Scores are engine confidence, not guaranteed accuracy.</p></div><button class="small-button" id="ocr-review-export">Export review JSON</button></div><div id="ocr-words" class="ocr-words"></div><div class="ocr-review-actions"><button class="primary compact" id="ocr-build">Build with reviewed text →</button><span>Flat backgrounds only; check symbols and labels before exporting.</span></div></section>`);
+const maskEditor=mountMaskEditor({onSave:(word,strokes,protectedRuns)=>{
+  const index=state.ocr?.words.indexOf(word)??-1;if(index<0||state.busy)throw Error('Source changed. Close and recognize the image again.');
+  state.ocr.words[index]=reviewEraseMask(word,strokes,protectedRuns);renderOcrReview();status('Mask approved locally. Build and inspect the result before export.');
+},onDrop:word=>{
+  if(!state.ocr?.words.includes(word)||state.busy)throw Error('Source changed. Close and recognize the image again.');
+  delete word.maskReview;word.selected=false;renderOcrReview();status('Saved mask removed. This label is unselected.');
+}});
 
 const sampleScene={width:800,height:460,background:'#ffffff',engine:'editable-example',nodes:[
   {type:'text',x:52,y:35,width:700,height:40,text:'Complementary information, one model',fontSize:25,bold:true,fill:'#252b40'},
@@ -51,7 +61,8 @@ function status(message,error=false){$('#status').textContent=message;$('#status
 function saveHistory(){if(state.scene){state.history.push(JSON.stringify(state.scene));if(state.history.length>30)state.history.shift();}$('#undo').disabled=!state.history.length;}
 function setBusy(value){state.busy=value;$('#convert').disabled=value||!state.source;$('#convert').classList.toggle('loading',value);$('#cancel').hidden=!value;$('#replace-file').disabled=value;$('#try-sample').disabled=value;
   document.querySelectorAll('#ocr-options input,#ocr-options select,#ocr-review input,#ocr-build,#ocr-review-export,[data-mode]').forEach(el=>el.disabled=value);
-  for(const el of document.querySelectorAll('[data-ocr-select]')){const word=state.ocr?.words.find(w=>w.id===el.dataset.ocrSelect);el.disabled=value||!word?.safeBackground||!!word.replacementBlock;}
+  for(const el of document.querySelectorAll('[data-ocr-select]'))el.disabled=value||!canReplaceWord(state.ocr?.words.find(w=>w.id===el.dataset.ocrSelect));
+  for(const el of document.querySelectorAll('[data-ocr-mask]')){const word=state.ocr?.words.find(w=>w.id===el.dataset.ocrMask);el.disabled=value||!word?.safeBackground||word.box.width*word.box.height>MAX_MASK_PIXELS;}
   for(const id of ['export-svg','export-pptx','export-json','add-text','toggle-layers'])$('#'+id).disabled=value||!state.scene;
 }
 function download(blob,name){const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);}
@@ -136,7 +147,7 @@ function renderOcrReview(){
   $('#ocr-words').innerHTML=state.ocr.words.map(w=>{
     const c=document.createElement('canvas');c.width=w.box.width+8;c.height=w.box.height+8;
     c.getContext('2d').drawImage(state.ocr.canvas,w.box.x-4,w.box.y-4,c.width,c.height,0,0,c.width,c.height);
-    return `<div class="ocr-word${w.confidence<85?' uncertain':''}"><label><input type="checkbox" data-ocr-select="${w.id}" ${w.selected?'checked':''} ${w.safeBackground&&!w.replacementBlock?'':'disabled'}/>Replace</label><img src="${c.toDataURL()}" alt="Source crop for ${escapeXml(w.originalText)}"/><input data-ocr-text="${w.id}" value="${escapeXml(w.text)}" maxlength="500" aria-label="Correct recognized word ${escapeXml(w.originalText)}"/><small>${w.confidence.toFixed(0)} · ${w.replacementBlock==='crossing-stroke'?'crossing stroke · kept':!w.safeBackground?'mixed background · kept':w.confidence<85?'check carefully':'review label'}</small></div>`;
+    return `<div class="ocr-word${w.confidence<85?' uncertain':''}"><label><input type="checkbox" data-ocr-select="${w.id}" ${w.selected?'checked':''} ${canReplaceWord(w)?'':'disabled'}/>Replace</label><img src="${c.toDataURL()}" alt="Source crop for ${escapeXml(w.originalText)}"/><input data-ocr-text="${w.id}" value="${escapeXml(w.text)}" maxlength="500" aria-label="Correct recognized word ${escapeXml(w.originalText)}"/><div class="ocr-mask-actions"><small>${w.confidence.toFixed(0)} · ${w.maskReview?'mask reviewed':w.replacementBlock==='crossing-stroke'?'crossing stroke · kept':!w.safeBackground?'mixed background · kept':w.confidence<85?'check carefully':'review label'}</small><button class="small-button" data-ocr-mask="${w.id}" ${w.safeBackground&&w.box.width*w.box.height<=MAX_MASK_PIXELS?'':'disabled'}>Review mask</button></div></div>`;
   }).join('')||'<p>No text found. Try another layout, a sharper image, or outline-only tracing.</p>';
   $('#ocr-build').disabled=!state.ocr.words.length;
 }
@@ -159,7 +170,7 @@ async function scanOcr(){
 async function buildOcr(){
   if(state.busy||!state.ocr)return;setBusy(true);status('Removing reviewed glyphs, then tracing the artwork…');
   try{
-    const {maskWords,appendOcrText}=await import('./ocr-core.js');const original=state.ocr.canvas;
+    const original=state.ocr.canvas;
     const pixels=maskWords(original.getContext('2d',{willReadFrequently:true}).getImageData(0,0,original.width,original.height),state.ocr.words);
     const masked=document.createElement('canvas');masked.width=original.width;masked.height=original.height;
     masked.getContext('2d').putImageData(new ImageData(pixels.data,pixels.width,pixels.height),0,0);
@@ -201,8 +212,9 @@ $('#open-example').onclick=()=>{saveHistory();showScene(sampleScene);status('Edi
 $('#convert').onclick=convert;$('#cancel').onclick=()=>{state.controller?.abort();state.cancelTrace?.();};
 $('#ocr-build').onclick=buildOcr;
 $('#ocr-words').oninput=e=>{const w=state.ocr?.words.find(w=>w.id===e.target.dataset.ocrText);if(w)w.text=e.target.value;};
-$('#ocr-words').onchange=e=>{const w=state.ocr?.words.find(w=>w.id===e.target.dataset.ocrSelect);if(w&&w.safeBackground&&!w.replacementBlock)w.selected=e.target.checked;};
-$('#ocr-review-export').onclick=async()=>{if(!state.ocr)return;const {reviewData}=await import('./ocr-core.js');download(new Blob([JSON.stringify(reviewData(state.ocr.words,state.ocr.canvas.width,state.ocr.canvas.height,state.ocr.language),null,2)],{type:'application/json'}),outputName(state.file.name,'ocr-review.json'));};
+$('#ocr-words').onchange=e=>{const w=state.ocr?.words.find(w=>w.id===e.target.dataset.ocrSelect);if(w&&canReplaceWord(w))w.selected=e.target.checked;};
+$('#ocr-words').onclick=e=>{const button=e.target.closest('[data-ocr-mask]'),word=state.ocr?.words.find(w=>w.id===button?.dataset.ocrMask);if(word&&!state.busy&&!button.disabled)maskEditor.open(word,state.ocr.canvas);};
+$('#ocr-review-export').onclick=()=>{if(!state.ocr)return;download(new Blob([JSON.stringify(reviewData(state.ocr.words,state.ocr.canvas.width,state.ocr.canvas.height,state.ocr.language),null,2)],{type:'application/json'}),outputName(state.file.name,'ocr-review.json'));};
 document.querySelectorAll('[data-mode]').forEach(button=>button.onclick=()=>setMode(button.dataset.mode));
 $('#settings').onclick=()=>$('#ai-dialog').showModal();$('#clear-key').onclick=()=>{$('#api-key').value='';$('#api-endpoint').value='';$('#api-model').value='';$('#ai-consent').checked=false;};
 $('#copy-prompt').onclick=async()=>{try{await navigator.clipboard.writeText(SCENE_PROMPT);status('Reconstruction prompt copied. Attach your image in your AI chat, then import its JSON.');}catch{status('Clipboard access unavailable. The prompt is in docs/ai-rebuild.md.',true);}};

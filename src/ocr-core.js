@@ -1,4 +1,5 @@
 import {validateScene,MAX_NODES} from './scene.js';
+import {createEraseMask,validateMaskStrokes,validateProtectedRuns,reviewedMask} from './ocr-mask.js';
 export const OCR_THRESHOLD=85; // A review heuristic, not a calibrated accuracy probability.
 export function ocrWords(data,width,height){
   const words=[];
@@ -52,12 +53,30 @@ export function prepareWords(words,image){
     return {...word,background:rgbHex(bg),backgroundAlpha,fill:rgbHex(fg),flatness,safeBackground,replacementBlock,selected:word.confidence>=OCR_THRESHOLD&&!replacementBlock};
   });
 }
-function replacements(words){return words.filter(w=>w.selected&&w.safeBackground&&!w.replacementBlock&&w.text.trim());}
+export function canReplaceWord(word){return !!word?.safeBackground&&(!word.replacementBlock||reviewedMask(word));}
+export function reviewEraseMask(word,strokes,protectedRuns=[]){
+  if(!word.safeBackground)throw Error('Mixed backgrounds need a different reconstruction route.');
+  const safe=validateMaskStrokes(word.box,strokes),runs=validateProtectedRuns(word.box,protectedRuns);createEraseMask(word.box,safe,runs); // Also bound work before approval.
+  return {...word,selected:true,maskReview:{version:1,userConfirmed:true,box:{...word.box},strokes:safe,protectedRuns:runs}};
+}
+function replacements(words){return words.filter(w=>w.selected&&canReplaceWord(w)&&w.text.trim());}
 export function maskWords(image,words){
   const out={width:image.width,height:image.height,data:new Uint8ClampedArray(image.data)};
-  for(const word of replacements(words)){
+  const active=replacements(words);let protectedPixels=null;
+  // Protection is global across active labels: an overlapping box must not clear it later.
+  // Process one crop at a time rather than retain all crop masks in memory.
+  for(const word of active)if(reviewedMask(word)){
+    protectedPixels??=new Uint8Array(image.width*image.height);
+    const b=word.box,mask=createEraseMask(b,word.maskReview.strokes,word.maskReview.protectedRuns);
+    for(let y=0;y<b.height;y++)for(let x=0;x<b.width;x++)if(!mask[y*b.width+x])protectedPixels[(y+b.y)*image.width+x+b.x]=1;
+  }
+  for(const word of active){
     const b=word.box,rgb=word.background.match(/[a-f\d]{2}/gi).map(v=>parseInt(v,16));
-    for(let y=b.y;y<b.y+b.height;y++)for(let x=b.x;x<b.x+b.width;x++){const i=(y*image.width+x)*4;out.data.set([...rgb,word.backgroundAlpha??255],i);}
+    const mask=reviewedMask(word)?createEraseMask(b,word.maskReview.strokes,word.maskReview.protectedRuns):null;
+    for(let y=b.y;y<b.y+b.height;y++)for(let x=b.x;x<b.x+b.width;x++){
+      if(protectedPixels?.[y*image.width+x]||(mask&&!mask[(y-b.y)*b.width+x-b.x]))continue;
+      const i=(y*image.width+x)*4;out.data.set([...rgb,word.backgroundAlpha??255],i);
+    }
   }
   return out;
 }
@@ -70,4 +89,4 @@ export function appendOcrText(scene,words,width,height){
   return validateScene({...scene,engine:'ocr-trace',nodes:[...scene.nodes,...text]});
 }
 export function reviewData(words,width,height,language){return {version:2,engine:'tesseract-lstm',language,width,height,trainedClassifier:false,annotationStatus:'unverified',
-  words:words.map(w=>({originalText:w.originalText,correctedText:w.text,textChangeKind:w.text===w.originalText?'unchanged':'unspecified',confidence:w.confidence,box:w.box,flatness:w.flatness,replacementBlock:w.replacementBlock??null,replace:replacements([w]).length===1}))};}
+  words:words.map(w=>({originalText:w.originalText,correctedText:w.text,textChangeKind:w.text===w.originalText?'unchanged':'unspecified',confidence:w.confidence,box:w.box,flatness:w.flatness,replacementBlock:w.replacementBlock??null,maskReview:reviewedMask(w)?JSON.parse(JSON.stringify(w.maskReview)):null,replace:replacements([w]).length===1}))};}

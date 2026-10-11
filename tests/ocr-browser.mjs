@@ -34,6 +34,36 @@ try{
   if(language.includes('chi_sim'))assert.equal(await evaluate(`[...document.querySelectorAll('[data-ocr-text]')].filter(x=>/[多模态型]/.test(x.value)).every(x=>document.querySelector('[data-ocr-select="'+x.dataset.ocrText+'"]').checked)`),true,'Adjacent Chinese characters stay eligible for native text');
   const labels=await evaluate(`[...document.querySelectorAll('[data-ocr-text]')].map(x=>({text:x.value,disabled:document.querySelector('[data-ocr-select="'+x.dataset.ocrText+'"]').disabled,score:x.parentElement.querySelector('small').textContent}))`);
   assert.equal(labels.find(x=>x.text==='Model')?.disabled,false,`Test label must be replaceable: ${JSON.stringify(labels)}`);
+  const modelId=await evaluate(`[...document.querySelectorAll('[data-ocr-text]')].find(x=>x.value==='Model').dataset.ocrText`);
+  assert.equal(await evaluate(`!!document.querySelector('[data-ocr-mask="${modelId}"]')`),true,'Each eligible label needs a visual erase-mask review');
+  await evaluate(`document.querySelector('[data-ocr-mask="${modelId}"]').click()`);
+  await wait(`document.querySelector('#mask-dialog')?.open`);
+  assert.equal(await evaluate(`!!document.querySelector('#mask-propose')`),true,'Mask review needs an inspectable component proposal');
+  await evaluate(`document.querySelector('#mask-propose').click()`);
+  assert.match(await evaluate(`document.querySelector('#mask-status').textContent`),/proposal/i);
+  await evaluate(`document.querySelector('#mask-reset').click()`);
+  await evaluate(`document.querySelector('#mask-paint').scrollIntoView({block:'center'})`);
+  const brush=await evaluate(`(()=>{const c=document.querySelector('#mask-paint'),r=c.getBoundingClientRect();return {x:r.left+r.width*.35,y:r.top+r.height*.45,dx:r.width*.1};})()`);
+  for(const mode of ['keep','erase']){
+    await evaluate(`document.querySelector('#mask-brush-mode').value='${mode}'`);
+    await send('Input.dispatchMouseEvent',{type:'mousePressed',x:brush.x,y:brush.y,button:'left',clickCount:1});
+    await send('Input.dispatchMouseEvent',{type:'mouseMoved',x:brush.x+brush.dx,y:brush.y,button:'left',buttons:1});
+    await send('Input.dispatchMouseEvent',{type:'mouseReleased',x:brush.x+brush.dx,y:brush.y,button:'left',clickCount:1});
+  }
+  assert.match(await evaluate(`document.querySelector('#mask-status').textContent`),/2 strokes/);
+  for(const width of [390,320]){await send('Emulation.setDeviceMetricsOverride',{width,height:1100,deviceScaleFactor:1,mobile:true});assert.equal(await evaluate(`document.documentElement.scrollWidth<=innerWidth&&document.querySelector('#mask-dialog').scrollWidth<=document.querySelector('#mask-dialog').clientWidth`),true,`Mask dialog fits ${width}`);}
+  await send('Emulation.setDeviceMetricsOverride',{width:1440,height:1100,deviceScaleFactor:1,mobile:false});
+  const maskShot=await send('Page.captureScreenshot');await fs.writeFile('.build/preview/mask-editor.png',Buffer.from(maskShot.data,'base64'));
+  await evaluate(`document.querySelector('#mask-save').click()`);await wait(`!document.querySelector('#mask-dialog').open`);
+  assert.match(await evaluate(`document.querySelector('[data-ocr-mask="${modelId}"]').parentElement.querySelector('small').textContent`),/mask reviewed/);
+  await evaluate(`document.querySelector('[data-ocr-mask="${modelId}"]').click()`);await wait(`document.querySelector('#mask-dialog').open`);
+  assert.match(await evaluate(`document.querySelector('#mask-status').textContent`),/2 strokes/,'Confirmed strokes survive reopening');
+  await evaluate(`document.querySelector('#mask-undo').click()`);
+  assert.match(await evaluate(`document.querySelector('#mask-status').textContent`),/1 strokes/);
+  await evaluate(`document.querySelector('#mask-close').click()`);await wait(`!document.querySelector('#mask-dialog').open`);
+  await evaluate(`document.querySelector('[data-ocr-mask="${modelId}"]').click()`);await wait(`document.querySelector('#mask-dialog').open`);
+  assert.match(await evaluate(`document.querySelector('#mask-status').textContent`),/2 strokes/,'Closing without confirmation must discard draft changes');
+  await evaluate(`document.querySelector('#mask-close').click()`);await wait(`!document.querySelector('#mask-dialog').open`);
   await evaluate(`const input=[...document.querySelectorAll('[data-ocr-text]')].find(x=>x.value==='Model');input.value='Encoder';input.dispatchEvent(new Event('input',{bubbles:true}));const check=document.querySelector('[data-ocr-select="'+input.dataset.ocrText+'"]');check.checked=true;check.dispatchEvent(new Event('change',{bubbles:true}));document.querySelector('#ocr-build').click()`);
   await wait(`document.querySelector('#status').textContent.includes('editable text')`);
   assert.equal(await evaluate(`document.querySelector('#result-svg').textContent.includes('Encoder')`),true);
@@ -43,6 +73,8 @@ try{
   let review;
   for(let attempt=0;attempt<50;attempt++){try{review=JSON.parse(await fs.readFile(path.join(dir,'ocr-diagram.ocr-review.json'),'utf8'));break;}catch(e){if(attempt===49)throw e;await new Promise(r=>setTimeout(r,100));}}
   assert.ok(review.words.some(w=>w.originalText==='Model'&&w.correctedText==='Encoder'&&w.replace));
+  const approved=review.words.find(w=>w.originalText==='Model').maskReview;
+  assert.equal(approved.userConfirmed,true);assert.equal(approved.strokes.length,2);assert.equal(review.annotationStatus,'unverified');
   await evaluate(`document.querySelector('#export-svg').click();document.querySelector('#export-pptx').click()`);
   await wait(`document.querySelector('#status').textContent.includes('PPTX downloaded')`);
   await new Promise(r=>setTimeout(r,250));
@@ -53,5 +85,5 @@ try{
   await send('Emulation.setDeviceMetricsOverride',{width:1440,height:1100,deviceScaleFactor:1,mobile:false});
   await evaluate(`document.querySelector('#studio').scrollIntoView()`);
   const shot=await send('Page.captureScreenshot');await fs.writeFile('.build/preview/ocr-studio.png',Buffer.from(shot.data,'base64'));
-  console.log('PASS: real OCR → reviewed correction → SVG text + paths / native PPTX text + vectors; consent and mobile widths');
+  console.log('PASS: real OCR → visual mask review → corrected SVG/native PPTX text + vectors; consent and mobile widths');
 }finally{ws.close();}

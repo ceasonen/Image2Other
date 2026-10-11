@@ -38,7 +38,7 @@ npm run dev
 Open `http://127.0.0.1:5178/Image2Other/`.
 
 1. Drop, browse, or paste an image. Try the included raster diagram if you want a quick example.
-2. In Text + vectors, allow the small OCR download and click Recognize text. Correct words against their source crops, select replacements, then Build with reviewed text. Or choose Vector trace, AI rebuild, or Image formats.
+2. In Text + vectors, allow the small OCR download and click Recognize text. Correct words against their source crops. Use Review mask to inspect removal, optionally Suggest protection, then paint/confirm protected artwork before Build with reviewed text. Or choose Vector trace, AI rebuild, or Image formats.
 3. Inspect the preview. Open Layers to change fills, opacity, text, or basic coordinates. Undo or add text when needed.
 4. Download SVG, PPTX, Scene JSON, or a raster image.
 
@@ -48,7 +48,9 @@ Text + vectors needs no API key and does not upload images. AI rebuild is an opt
 
 Tesseract.js 7 / Tesseract LSTM runs in a browser worker, using English or English + Simplified Chinese. Recognition uses up to a 2× working image, capped at a 2,400-pixel edge / 4 megapixels, independently of the 768-pixel artwork trace. Choose diagram, document or single-block segmentation. Confidence 85 is a review heuristic, **not** an 85% correctness guarantee. High-confidence labels on consistent flat backgrounds are preselected; uncertain labels need explicit checking. Mixed-background boxes and detected axis-aligned strokes crossing a box are kept, with a refusal reason in the review. This conservative check is not semantic connector recovery: diagonal strokes and artwork contained inside a box can still be erased. Unselected text remains traced artwork. Inspect the preview and leave an unsafe label unselected. Fonts, size and placement are approximate. Handwriting, equations, rotated labels and very small text are not guaranteed. Transparent artwork backgrounds are retained.
 
-Export review JSON v2 saves unverified OCR observations, local text edits, boxes, refusal reasons and replace decisions. A rename is not automatically an OCR correction; these logs are not ground-truth training labels. No XGBoost classifier is trained or bundled. Real-browser tests recognize authored raster words, edit one and verify actual SVG text/path and native PPTX text/vector downloads; this is not a general OCR accuracy benchmark.
+**Review mask** opens a source/erase-map and a preview of remaining artwork before native text is added. Protect artwork, clear protection, undo or reset the draft; only Confirm mask & replace saves it. Closing discards draft changes. Suggest protection uses a small connected-component rule: foreground touching the crop's exterior or a long thin component is kept. It is optional, not a learned separator. Joined text/lines can be kept together, leaving old glyphs; short contained shapes can be missed. Inspect and adjust rather than treating the proposal as accurate. A confirmed mask can override the crossing-stroke refusal, but never the mixed-background refusal. Mask crops are capped at 262,144 pixels, 64 strokes and 2,048 points; no new model download is needed.
+
+Export review JSON v2 saves unverified OCR observations, local text edits, boxes, refusal reasons, replace decisions and confirmed mask instructions. A rename is not automatically an OCR correction, and mask confirmation is not verified segmentation ground truth. No XGBoost classifier is trained or bundled. Real-browser tests recognize authored raster words, inspect/draw/cancel/confirm a mask, edit a label and verify actual SVG text/path and native PPTX text/vector downloads; this is not a general OCR accuracy benchmark.
 
 ```sh
 npm test
