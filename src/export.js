@@ -14,7 +14,7 @@ export async function exportPptx(input, outputType='blob') {
       line:node.stroke==='none'?{color:'FFFFFF',transparency:100}:{color:node.stroke.slice(1),width:node.strokeWidth*scale*72,transparency:(1-node.opacity)*100}};
     if(node.type==='text') {
       slide.addText(node.text,{x:node.x*scale,y:node.y*scale,w:node.width*scale,h:node.height*scale,fontFace:'Arial',fontSize:node.fontSize*scale*72,
-        color:node.fill==='none'?'111111':node.fill.slice(1),bold:node.bold,align:node.align,margin:0,breakLine:false,valign:'top',shapeName:node.name}); continue;
+        color:node.fill==='none'?'111111':node.fill.slice(1),bold:node.bold,align:node.align,margin:0,breakLine:false,valign:'top',shapeName:node.name,...(node.fitWidth?{fit:'resize'}:{})}); continue;
     }
     if(node.type==='path') {
       const points=pathToPoints(node.d,scale);

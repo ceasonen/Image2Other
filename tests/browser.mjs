@@ -23,7 +23,7 @@ try{
   await evaluate(`document.querySelector('#try-sample').click()`);
   await wait(`document.querySelector('#status').textContent.includes('ready')`);
   assert.equal(await evaluate(`document.querySelector('#source-image').naturalWidth>0`),true);
-  await evaluate(`document.querySelector('#convert').click()`);
+  await evaluate(`document.querySelector('[data-mode="trace"]').click();document.querySelector('#convert').click()`);
   await wait(`document.querySelector('#status').textContent.includes('paths ready')`);
   assert.equal(await evaluate(`document.querySelectorAll('#result-svg path[data-node-id]').length>0`),true);
   assert.equal(await evaluate(`document.querySelectorAll('#result-svg image').length`),0);
@@ -87,6 +87,7 @@ try{
   const encoded=Buffer.from(await fixture.save()).toString('base64');
   await evaluate(`(()=>{const transfer=new DataTransfer();transfer.items.add(new File([Uint8Array.from(atob('${encoded}'),c=>c.charCodeAt(0))],'test.pdf',{type:'application/pdf'}));const input=document.querySelector('#files-input');input.files=transfer.files;input.dispatchEvent(new Event('change',{bubbles:true}));})()`);
   await wait(`document.querySelector('#files-status').textContent.includes('ready')`);
+  await evaluate(`document.querySelector('#files-pages').value='All'`);
   for(const tool of ['extract','split','rotate','png','text','pptx-text','pptx-image']){
     await evaluate(`document.querySelector('[data-file-tool="${tool}"]').click();document.querySelector('#files-run').click()`);
     await wait(`document.querySelector('#files-status').textContent.includes('downloaded')&&!document.querySelector('#files-run').disabled`);

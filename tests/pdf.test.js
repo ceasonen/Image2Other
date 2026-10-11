@@ -13,7 +13,12 @@ test('page selections preserve order and repetitions with inclusive ranges',asyn
   const {parsePages}=await core();
   assert.deepEqual(parsePages('3,1-2,3',3),[2,0,1,2]);
   assert.deepEqual(parsePages('',3),[0,1,2]);
-  for(const invalid of ['0','4','2-1','1,,2','1e2','1.5','-1','all','1-1000000000'])assert.throws(()=>parsePages(invalid,3));
+  for(const invalid of ['0','4','2-1','1,,2','1e2','1.5','-1','1-1000000000'])assert.throws(()=>parsePages(invalid,3));
+});
+test('page field accepts the displayed All choice and common pasted separators',async()=>{
+  const {parsePages}=await core();
+  for(const all of ['All','all',' ALL ','全部'])assert.deepEqual(parsePages(all,3),[0,1,2]);
+  assert.deepEqual(parsePages('3，1–2',3),[2,0,1]);
 });
 test('single-page selection round trips throughout the supported domain',async()=>{
   const {parsePages}=await core();

@@ -31,6 +31,7 @@ export function validateScene(input) {
           if (typeof node.text !== 'string' || node.text.length > 5000) throw new Error('Invalid text');
           result.text=node.text; result.fontSize=number(node.fontSize ?? 16,'fontSize',1,500);
           result.bold=Boolean(node.bold); result.align=['left','center','right'].includes(node.align) ? node.align : 'left';
+          if(node.fitWidth)result.fitWidth=true;
         }
       }
     }
@@ -50,7 +51,7 @@ export function sceneToSvg(input, { selected = null } = {}) {
     if(node.type==='text') {
       const offset=node.align==='center'?node.width/2:node.align==='right'?node.width:0;
       const anchor=node.align==='center'?'middle':node.align==='right'?'end':'start';
-      shape=`<text ${style} x="${node.x+offset}" y="${node.y}" font-family="Arial, sans-serif" font-size="${node.fontSize}" font-weight="${node.bold?700:400}" text-anchor="${anchor}" dominant-baseline="hanging">${node.text.split('\n').map((line,i)=>`<tspan x="${node.x+offset}" dy="${i?node.fontSize*1.2:0}">${escapeXml(line)}</tspan>`).join('')}</text>`;
+      shape=`<text ${style} x="${node.x+offset}" y="${node.y}" font-family="Arial, sans-serif" font-size="${node.fontSize}" font-weight="${node.bold?700:400}" text-anchor="${anchor}" dominant-baseline="hanging">${node.text.split('\n').map((line,i)=>`<tspan x="${node.x+offset}" dy="${i?node.fontSize*1.2:0}"${node.fitWidth?` textLength="${node.width}" lengthAdjust="spacingAndGlyphs"`:''}>${escapeXml(line)}</tspan>`).join('')}</text>`;
     }
     return `<g${selected===node.id?' class="selected-layer"':''}><title>${escapeXml(node.name)}</title>${shape}</g>`;
   });

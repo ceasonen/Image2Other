@@ -1,0 +1,61 @@
+import {validateScene,MAX_NODES} from './scene.js';
+export const OCR_THRESHOLD=85; // A review heuristic, not a calibrated accuracy probability.
+export function ocrWords(data,width,height){
+  const words=[];
+  for(const block of data?.blocks??[])for(const paragraph of block.paragraphs??[])for(const line of paragraph.lines??[]){
+   const candidates=line.bbox&&line.text?.trim()?[{...line,confidence:Math.min(Number(line.confidence??100),...(line.words??[]).map(w=>Number(w.confidence??0)))}]:line.words??[];
+   for(const word of candidates){
+    const b=word.bbox,text=String(word.text??'').trim().replace(/(?<=[\u3400-\u9fff]) +(?=[\u3400-\u9fff])/g,''),confidence=Number(word.confidence);
+    if(!text||text.length>500||!b||![b.x0,b.y0,b.x1,b.y1,confidence].every(Number.isFinite)||b.x1<=b.x0||b.y1<=b.y0)continue;
+    const x=Math.max(0,Math.floor(b.x0)),y=Math.max(0,Math.floor(b.y0));
+    const right=Math.min(width,Math.ceil(b.x1)),bottom=Math.min(height,Math.ceil(b.y1));
+    if(right<=x||bottom<=y)continue;
+    words.push({id:`word-${words.length}`,originalText:text,text,confidence:Math.max(0,Math.min(100,confidence)),box:{x,y,width:right-x,height:bottom-y},selected:false});
+    if(words.length>=500)return words;
+   }
+  }
+  return words;
+}
+const rgbHex=rgb=>'#'+rgb.map(v=>Math.round(v).toString(16).padStart(2,'0')).join('');
+const distance=(a,b)=>Math.max(...a.map((v,i)=>Math.abs(v-b[i])));
+function pixel(image,x,y){const i=(y*image.width+x)*4,a=image.data[i+3]/255;return [...image.data.slice(i,i+3)].map(v=>Math.round(v*a+255*(1-a)));}
+export function prepareWords(words,image){
+  return words.map(word=>{
+    const b=word.box,edge=[],alphas=[],bins=new Map();
+    const neighbors=words.filter(other=>other!==word&&other.box.x<b.x+b.width+2&&other.box.x+other.box.width>b.x-2&&other.box.y<b.y+b.height+2&&other.box.y+other.box.height>b.y-2);
+    for(let y=Math.max(0,b.y-2);y<Math.min(image.height,b.y+b.height+2);y++)for(let x=Math.max(0,b.x-2);x<Math.min(image.width,b.x+b.width+2);x++){
+      if(x>=b.x&&x<b.x+b.width&&y>=b.y&&y<b.y+b.height)continue;
+      if(neighbors.some(w=>x>=w.box.x&&x<w.box.x+w.box.width&&y>=w.box.y&&y<w.box.y+w.box.height))continue;
+      const rgb=pixel(image,x,y),key=rgb.map(v=>Math.round(v/24)).join(',');edge.push(rgb);alphas.push(image.data[(y*image.width+x)*4+3]);
+      const bin=bins.get(key)??[];bin.push(rgb);bins.set(key,bin);
+    }
+    const dominant=[...bins.values()].sort((a,b)=>b.length-a.length)[0]??[[255,255,255]];
+    const bg=[0,1,2].map(i=>dominant.reduce((s,c)=>s+c[i],0)/dominant.length);
+    const backgroundAlpha=alphas.sort((a,b)=>a-b)[Math.floor(alphas.length/2)]??255;
+    const flatness=edge.length?edge.filter(c=>distance(c,bg)<32).length/edge.length:0;
+    const safeBackground=flatness>=.9&&alphas.filter(a=>Math.abs(a-backgroundAlpha)<24).length/Math.max(1,alphas.length)>=.9;
+    const ink=[],step=Math.max(1,Math.ceil(Math.sqrt(b.width*b.height/4096)));
+    for(let y=b.y;y<b.y+b.height;y+=step)for(let x=b.x;x<b.x+b.width;x+=step){const c=pixel(image,x,y);if(distance(c,bg)>70)ink.push(c);}
+    const fg=ink.length?[0,1,2].map(i=>ink.map(c=>c[i]).sort((a,b)=>a-b)[Math.floor(ink.length/2)]):[32,36,54];
+    return {...word,background:rgbHex(bg),backgroundAlpha,fill:rgbHex(fg),flatness,safeBackground,selected:word.confidence>=OCR_THRESHOLD&&safeBackground};
+  });
+}
+function replacements(words){return words.filter(w=>w.selected&&w.safeBackground&&w.text.trim());}
+export function maskWords(image,words){
+  const out={width:image.width,height:image.height,data:new Uint8ClampedArray(image.data)};
+  for(const word of replacements(words)){
+    const b=word.box,rgb=word.background.match(/[a-f\d]{2}/gi).map(v=>parseInt(v,16));
+    for(let y=b.y;y<b.y+b.height;y++)for(let x=b.x;x<b.x+b.width;x++){const i=(y*image.width+x)*4;out.data.set([...rgb,word.backgroundAlpha??255],i);}
+  }
+  return out;
+}
+export function appendOcrText(scene,words,width,height){
+  const sx=scene.width/width,sy=scene.height/height;
+  const text=replacements(words).map(word=>({type:'text',name:`OCR: ${word.text}`,text:word.text,
+    x:word.box.x*sx,y:word.box.y*sy,width:word.box.width*sx,height:word.box.height*sy*1.35,
+    fontSize:Math.max(1,Math.min(500,word.box.height*sy*1.2)),fill:word.fill,fitWidth:true}));
+  if(scene.nodes.length+text.length>MAX_NODES)throw Error('Too many layers. Trace with fewer colors or simplify detail.');
+  return validateScene({...scene,engine:'ocr-trace',nodes:[...scene.nodes,...text]});
+}
+export function reviewData(words,width,height,language){return {version:1,engine:'tesseract-lstm',language,width,height,trainedClassifier:false,
+  words:words.map(w=>({originalText:w.originalText,correctedText:w.text,confidence:w.confidence,box:w.box,flatness:w.flatness,replace:replacements([w]).length===1}))};}

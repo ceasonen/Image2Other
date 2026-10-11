@@ -37,6 +37,8 @@ jobs:
             sleep 1
           done
           node tests/browser.mjs http://127.0.0.1:4178/Image2Other/ 9226
+          node tests/ocr-browser.mjs http://127.0.0.1:4178/Image2Other/ 9226
+          node tests/ocr-browser.mjs http://127.0.0.1:4178/Image2Other/ 9226 eng+chi_sim
       - uses: actions/upload-pages-artifact@v3
         if: github.event_name != 'pull_request'
         with:

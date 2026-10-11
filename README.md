@@ -12,6 +12,7 @@ A local-first conversion studio for research figures, PDFs, slides and everyday 
 
 | Mode | What you get | What stays editable | Requirements |
 | --- | --- | --- | --- |
+| Text + vectors (default) | OCR word boxes plus traced artwork | Reviewed words as SVG text / PPTX text boxes; artwork as paths | Small OCR runtime/language download after permission; local inference |
 | Vector trace | Colored vector paths | Path geometry, fill, opacity; PPTX freeform objects | Browser only |
 | AI rebuild | A validated scene of text, shapes, lines, and paths | Text content, geometry, colors, arrows | Your compatible vision provider, or Scene JSON from your AI chat |
 | Image formats | PNG, JPEG, WebP with resize and quality options | Raster pixels, not semantic objects | Browser only |
@@ -21,7 +22,7 @@ A local-first conversion studio for research figures, PDFs, slides and everyday 
 | Image batches | Multi-page PDF or one image per PowerPoint slide | Images remain raster | Browser only |
 | PPTX extraction | Slide text as TXT; embedded raster images as ZIP | Source text/image content, not rendered slide layouts | Browser only |
 
-**A traced letter is an outline, not a text box.** Local tracing does not recover the original layers, fonts, labels, or meaning. AI reconstruction approximates those elements and can make mistakes. Compare labels, equations, layout, and geometry against the source before publication.
+**A traced letter is an outline, not a text box.** The default **Text + vectors** mode recognizes words first, lets you review/correct them, removes selected glyph regions, then traces the remaining artwork and inserts native editable text. Outline-only Vector trace remains available. Neither mode recovers the original fonts, layers or semantic connections. Compare labels, equations, layout, and geometry against the source before publication.
 
 Figure-studio PPTX export uses native text boxes, shapes, and custom vector geometry. Document-workspace PPTX modes are different: page-image mode is intentionally raster; text mode removes original PDF glyphs from the background and adds native text boxes. Font/color/placement are approximate, not a recovery of the original slide source. The authored example demonstrates editing/export, not reconstruction accuracy.
 
@@ -37,11 +38,17 @@ npm run dev
 Open `http://127.0.0.1:5178/Image2Other/`.
 
 1. Drop, browse, or paste an image. Try the included raster diagram if you want a quick example.
-2. Choose Vector trace, AI rebuild, or Image formats.
+2. In Text + vectors, allow the small OCR download and click Recognize text. Correct words against their source crops, select replacements, then Build with reviewed text. Or choose Vector trace, AI rebuild, or Image formats.
 3. Inspect the preview. Open Layers to change fills, opacity, text, or basic coordinates. Undo or add text when needed.
 4. Download SVG, PPTX, Scene JSON, or a raster image.
 
-To recover editable words, use AI rebuild. Configure your vision provider with the settings button, or copy the reconstruction prompt into your own AI chat and import its JSON response. [AI setup and scene schema](docs/ai-rebuild.md)
+Text + vectors needs no API key and does not upload images. AI rebuild is an optional alternative for semantic shapes/connectors. [AI setup and scene schema](docs/ai-rebuild.md)
+
+### OCR behavior and limits
+
+Tesseract.js 7 / Tesseract LSTM runs in a browser worker, using English or English + Simplified Chinese. Recognition uses up to a 2× working image, capped at a 2,400-pixel edge / 4 megapixels, independently of the 768-pixel artwork trace. Choose diagram, document or single-block segmentation. Confidence 85 is a review heuristic, **not** an 85% correctness guarantee. High-confidence words on consistent flat backgrounds are preselected; uncertain words need explicit checking. Mixed-background boxes cannot be erased by this first version. Unselected text remains traced artwork. Masking may remove overlapping artwork inside a selected word box: inspect the preview and leave that word unselected if needed. Fonts, size and placement are approximate. Handwriting, equations, rotated labels and very small text are not guaranteed. Transparent artwork backgrounds are retained.
+
+Export review JSON saves OCR observations, corrections, boxes and replace decisions locally. These can become future calibration/training data, but no XGBoost classifier is trained or bundled. Real-browser tests recognize authored raster words, correct one and verify actual SVG text/path and native PPTX text/vector downloads; this is not a general OCR accuracy benchmark.
 
 ```sh
 npm test
@@ -53,6 +60,7 @@ The deployment workflow also runs real-browser smoke tests before publishing. To
 
 ```sh
 node tests/browser.mjs http://127.0.0.1:4178/Image2Other/ 9226
+node tests/ocr-browser.mjs http://127.0.0.1:4178/Image2Other/ 9226
 ```
 
 Tests cover native PPTX XML, PDF page operations, forms/input rejection, ordered slide text extraction, safe scene parsing, and the consent boundary. Browser tests inspect actual downloaded files, verify text-mode backgrounds remove original glyphs, exercise PDF/image/slide operations, and check responsive widths. Native-shape and traced-path exports were also rendered with LibreOffice during earlier release QA. Live provider accuracy is not benchmarked.
@@ -60,13 +68,14 @@ Tests cover native PPTX XML, PDF page operations, forms/input rejection, ordered
 ## Privacy and limits
 
 - Local image, PDF and PPTX tools run on your device. There is no upload backend, account, analytics, or persisted file history. PDF libraries and workers are self-hosted with the application, not fetched from a runtime CDN.
+- OCR API/worker scripts and pinned language data are self-hosted (English ~3 MB, Simplified Chinese ~1.7 MB). After permission, jsDelivr supplies the pinned Tesseract.js-core 7 runtime (a few MB). Asset requests contain no image/recognized words. Resources may use the browser's HTTP cache; images and corrections are not persisted. No large research-model weights or datasets load automatically.
 - AI rebuild sends the image and prompt **only after consent** to the endpoint you enter. That provider's fees, privacy policy, retention, and CORS rules apply. Do not send confidential review material without permission.
 - Provider credentials live in the settings fields for the current page session. We do not put them in localStorage, IndexedDB, URLs, logs, or this repository. Close the page or click Clear credentials to remove them.
 - Input limit: 20 MB and 24 megapixels. Local trace uses a maximum 768-pixel working edge and at most 2,000 paths. This trades fine detail for browser responsiveness. It is suited to flat graphics rather than photographic reconstruction.
 - PNG/JPEG/WebP export support depends on the browser. JPEG has no transparency; select its background color. Animated inputs export one decoded frame. Resizing does not recover missing detail.
 - Imported SVGs must be self-contained and have no scripts, foreign objects, external references, or style blocks. They are decoded as images; their original vector structure is not currently imported as a scene.
 - The document queue allows 25 files / 50 MB total, up to 200 PDF pages. Rendering is capped at 40 pages, 12 megapixels per page and 32 megapixels per batch. PPTX extraction caps expanded archive contents at 100 MB / 1,000 files. Choose smaller batches when needed.
-- Page changes refuse PDFs containing form/signature fields. Keep originals; document restructuring is not signature preservation. Password-protected PDFs/PPTX, OCR for scans, Office-to-PDF rendering, lossless compression, Word/Excel conversions, EPS and legacy `.ppt` are not implemented. This release does not claim universal conversion or feature parity with Smallpdf.
+- Page changes refuse PDFs containing form/signature fields. Keep originals; document restructuring is not signature preservation. Scans can send a single page to Text + vectors via PDF page → figure studio; there is no bulk scanned-PDF OCR or searchable-PDF export. Password-protected PDFs/PPTX, Office-to-PDF, lossless compression, Word/Excel, EPS and legacy `.ppt` are not implemented. This release does not claim universal conversion or feature parity with Smallpdf.
 - PPTX extraction reads common DrawingML text runs and embedded PNG/JPEG/WebP/GIF media. It does not render slides, recover linked images, extract editable charts or guarantee reading order within a slide. Image-to-PDF downscales longest edges above 4,096 pixels and uses white backgrounds.
 - Current figure paths support absolute M/L/Q/C/Z commands and solid fills. Gradients, editable equations and native attached-connector relationships remain outside the public figure editor.
 
@@ -78,7 +87,7 @@ Vite's base path is `/Image2Other/`. Change it in `vite.config.js` if you fork t
 
 ## Development direction
 
-Next engineering work includes OCR-assisted rebuilding, Office rendering through an explicit opt-in local service, and complex-artwork preservation. These are not implemented. Contributions should include a minimal licensed example, expected editable elements and actual output.
+Next work includes evaluating stronger OCR engines (e.g. PaddleOCR), learning/calibrating replacement decisions on annotated figures, Office rendering through an opt-in local service and complex-artwork preservation. These are not implemented. XGBoost is a possible lightweight confidence/region gate once annotations exist, not an OCR recognizer. Contributions should include licensed examples, expected elements and actual output.
 
 This is an early usable release, not a claim of better accuracy than existing systems. Our [research map](docs/research.md) separates published methods, engineering references, and actual integrations. VectorHarness directly overlaps relation-preserving reconstruction and local repair; those capabilities alone are not a new contribution. Lightweight selective edit-response recovery remains a candidate requiring evidence. Source-only reference checkouts and a pre-experimental draft stay in an ignored local research directory; no weights or large datasets were downloaded.
 

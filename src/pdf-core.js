@@ -4,7 +4,8 @@ export const PDF_LIMITS={bytes:50*1024*1024,pages:200,files:25,renderPages:40,pi
 
 export function parsePages(value,count){
   if(!Number.isInteger(count)||count<1||count>PDF_LIMITS.pages)throw new Error('Choose a PDF with 1–200 pages.');
-  const text=String(value??'').trim();if(!text)return Array.from({length:count},(_,i)=>i);
+  const text=String(value??'').trim().replace(/[，、]/g,',').replace(/[–—～~]/g,'-');
+  if(!text||/^(all|全部)$/i.test(text))return Array.from({length:count},(_,i)=>i);
   if(text.length>2000)throw new Error('Page selection is too long.');
   const result=[];
   for(const part of text.split(',')){

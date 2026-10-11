@@ -8,7 +8,7 @@ const icon=(name)=>{
   return `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${paths[name]??paths.image}"/></svg>`;
 };
 const $=selector=>document.querySelector(selector);
-const state={mode:'trace',file:null,source:null,scene:null,selected:null,busy:false,history:[],originalUrl:null,controller:null,worker:null};
+const state={mode:'trace',file:null,source:null,scene:null,selected:null,busy:false,history:[],originalUrl:null,controller:null,worker:null,ocr:null};
 document.querySelector('#app').innerHTML=`
   <header class="header"><a class="brand" href="./"><span class="brand-mark">${icon('layers')}</span>Image<span>2</span>Other<span class="beta">BETA</span></a><nav aria-label="Main navigation"><a href="#how-it-works">How it works</a><a href="https://ceasonen.github.io/">Cheng Chen</a><a class="github-link" href="https://github.com/ceasonen/Image2Other" target="_blank" rel="noopener">${icon('github')}<span>Star on GitHub</span></a></nav></header>
   <main>
@@ -30,6 +30,11 @@ document.querySelector('#app').innerHTML=`
   <dialog id="ai-dialog"><form method="dialog"><div class="dialog-title"><div><span class="eyebrow">AI REBUILD</span><h2>Bring your own vision model.</h2></div><button class="icon-button" aria-label="Close settings">${icon('close')}</button></div><p>Use a chat-completions-compatible vision provider. Your key stays in memory and is sent only to the endpoint you enter. Images leave your browser only when you consent and run AI rebuild.</p><label>API base URL<input id="api-endpoint" type="url" placeholder="https://your-provider.example/v1" autocomplete="off"/></label><label>Vision model<input id="api-model" placeholder="Your provider's vision model ID" autocomplete="off"/></label><label>API key <span>(optional for a local provider)</span><input id="api-key" type="password" placeholder="Session only. Never saved." autocomplete="off"/></label><label class="consent"><input id="ai-consent" type="checkbox"/>I allow my image and the reconstruction prompt to be sent to this provider. Its fees and privacy policy apply.</label><p class="dialog-note">No key? Copy the prompt, use your own AI chat, then import the returned Scene JSON. Providers must allow browser requests (CORS).</p><div class="dialog-actions"><button class="small-button" id="clear-key" type="button">Clear credentials</button><button class="primary compact">Use these settings</button></div></form></dialog>
 `;
 
+// Text-first reconstruction is distinct from outline-only tracing and remote AI rebuilding.
+$('[data-mode="trace"]').insertAdjacentHTML('beforebegin','<button class="mode" data-mode="ocr" role="tab" aria-selected="false">'+icon('code')+'Text + vectors<span>OCR</span></button>');
+$('#trace-options').insertAdjacentHTML('afterend',`<div id="ocr-options" hidden><label>Language<select id="ocr-language"><option value="eng">English</option><option value="eng+chi_sim">English + 简体中文</option></select></label><label>Layout<select id="ocr-layout"><option value="11">Diagram labels</option><option value="3">Document / columns</option><option value="6">One text block</option></select></label><label class="ocr-consent"><input id="ocr-download-consent" type="checkbox"/>Allow OCR download · no image upload</label></div>`);
+$('.edit-bar').insertAdjacentHTML('beforebegin',`<section id="ocr-review" class="ocr-review" hidden aria-labelledby="ocr-review-title"><div class="ocr-review-heading"><div><h3 id="ocr-review-title">Check the words. Keep the figure.</h3><p>Selected words become editable text. Unselected regions stay as traced outlines. Scores are engine confidence, not guaranteed accuracy.</p></div><button class="small-button" id="ocr-review-export">Export review JSON</button></div><div id="ocr-words" class="ocr-words"></div><div class="ocr-review-actions"><button class="primary compact" id="ocr-build">Build with reviewed text →</button><span>Flat backgrounds only; check symbols and labels before exporting.</span></div></section>`);
+
 const sampleScene={width:800,height:460,background:'#ffffff',engine:'editable-example',nodes:[
   {type:'text',x:52,y:35,width:700,height:40,text:'Complementary information, one model',fontSize:25,bold:true,fill:'#252b40'},
   {type:'rect',x:52,y:155,width:160,height:105,radius:14,fill:'#e2eafa',stroke:'#bfd0ed',strokeWidth:2},
@@ -44,7 +49,11 @@ const sampleScene={width:800,height:460,background:'#ffffff',engine:'editable-ex
 ]};
 function status(message,error=false){$('#status').textContent=message;$('#status-indicator').classList.toggle('error',error);}
 function saveHistory(){if(state.scene){state.history.push(JSON.stringify(state.scene));if(state.history.length>30)state.history.shift();}$('#undo').disabled=!state.history.length;}
-function setBusy(value){state.busy=value;$('#convert').disabled=value||!state.source;$('#convert').classList.toggle('loading',value);$('#cancel').hidden=!value;$('#replace-file').disabled=value;$('#try-sample').disabled=value;}
+function setBusy(value){state.busy=value;$('#convert').disabled=value||!state.source;$('#convert').classList.toggle('loading',value);$('#cancel').hidden=!value;$('#replace-file').disabled=value;$('#try-sample').disabled=value;
+  document.querySelectorAll('#ocr-options input,#ocr-options select,#ocr-review input,#ocr-build,#ocr-review-export,[data-mode]').forEach(el=>el.disabled=value);
+  for(const el of document.querySelectorAll('[data-ocr-select]'))el.disabled=value||!state.ocr?.words.find(w=>w.id===el.dataset.ocrSelect)?.safeBackground;
+  for(const id of ['export-svg','export-pptx','export-json','add-text','toggle-layers'])$('#'+id).disabled=value||!state.scene;
+}
 function download(blob,name){const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);}
 function showScene(scene){state.scene=validateScene(scene);state.selected=null;renderScene();}
 function renderScene(){
@@ -85,7 +94,7 @@ async function loadFile(file){
     url=URL.createObjectURL(file);const image=new Image();image.src=url;await image.decode();
     if(image.naturalWidth*image.naturalHeight>24_000_000)throw new Error('This image exceeds 24 megapixels. Resize it first.');
     if(state.originalUrl)URL.revokeObjectURL(state.originalUrl);state.originalUrl=url;state.source=image;state.file=file;
-    state.scene=null;state.history=[];state.selected=null;
+    state.scene=null;state.history=[];state.selected=null;state.ocr=null;$('#ocr-review').hidden=true;
     $('#source-image').src=url;$('#source-image').hidden=false;$('#source-empty').hidden=true;
     $('#result-svg').hidden=true;$('#result-empty').hidden=false;$('#raster-preview').hidden=true;$('#layer-editor').hidden=true;
     for(const id of ['export-svg','export-pptx','export-json','add-text','toggle-layers','undo'])$('#'+id).disabled=true;
@@ -105,15 +114,64 @@ function showRasterPreview(){if(!state.source)return;$('#result-empty').hidden=t
 function setMode(mode){
   if(state.busy)return;state.mode=mode;
   for(const button of document.querySelectorAll('[data-mode]')){const selected=button.dataset.mode===mode;button.classList.toggle('active',selected);button.setAttribute('aria-selected',selected);}
-  for(const id of ['trace','ai','raster'])$('#'+id+'-options').hidden=id!==mode;
+  for(const id of ['trace','ocr','ai','raster'])$('#'+id+'-options').hidden=id!==mode;
+  $('#ocr-review').hidden=mode!=='ocr'||!state.ocr;
   $('#convert').hidden=mode==='raster';$('#export-raster').hidden=mode!=='raster';
   for(const id of ['export-svg','export-pptx','export-json'])$('#'+id).hidden=mode==='raster';
   $('.edit-tools').hidden=mode==='raster';if(mode==='raster'){$('#layer-editor').hidden=true;showRasterPreview();}else if(state.scene)renderScene();else{$('#raster-preview').hidden=true;$('#result-empty').hidden=false;}
-  $('#convert').innerHTML=icon('spark')+(mode==='ai'?'Rebuild diagram':'Trace image')+icon('arrow');
-  $('#mode-note').textContent=mode==='trace'?'Vector trace preserves outlines as editable paths. Letters remain outlines, not editable text. For text boxes and meaningful shapes, use AI rebuild.':mode==='ai'?'AI reconstruction can change labels or geometry. Compare against your original. Requires your vision provider, or import Scene JSON from your own AI chat.':'PNG preserves transparency. JPEG uses your selected background. WebP quality and format availability depend on your browser. Animated inputs export a single decoded frame.';
+  $('#convert').innerHTML=icon('spark')+(mode==='ocr'?'Recognize text':mode==='ai'?'Rebuild diagram':'Trace image')+icon('arrow');
+  $('#mode-note').textContent=mode==='ocr'?'OCR reads text before tracing. Review the words, then rebuild: clean editable SVG/PPTX text over vector artwork. A small LSTM engine and selected language data load from jsDelivr after permission; your image stays local. Fonts/placement are approximate. Formulas and handwriting are not guaranteed.':mode==='trace'?'Outline-only tracing. Letters remain paths. Choose Text + vectors to recognize words as editable text before tracing the artwork.':mode==='ai'?'AI reconstruction can change labels or geometry. Compare against your original. Requires your vision provider, or import Scene JSON from your own AI chat.':'PNG preserves transparency. JPEG uses your selected background. WebP quality and format availability depend on your browser. Animated inputs export a single decoded frame.';
+}
+function traceCanvas(canvas){return new Promise((resolve,reject)=>{
+  const worker=new Worker(new URL('./trace.worker.js',import.meta.url),{type:'module'});state.worker=worker;
+  const finish=(error,scene)=>{clearTimeout(timer);worker.terminate();state.worker=null;state.cancelTrace=null;error?reject(error):resolve(scene);};
+  const timer=setTimeout(()=>finish(Error('Trace took too long. Try fewer colors or a simpler image.')),60000);
+  worker.onmessage=e=>finish(e.data.error?Error(e.data.error):null,e.data.scene);
+  worker.onerror=()=>finish(Error('Tracing worker failed. Try a simpler image.'));
+  state.cancelTrace=()=>finish(Error('Conversion cancelled.'));
+  worker.postMessage({image:canvas.getContext('2d').getImageData(0,0,canvas.width,canvas.height),colors:Number($('#colors').value),detail:Number($('#detail').value)});
+});}
+function renderOcrReview(){
+  $('#ocr-review').hidden=false;
+  $('#ocr-words').innerHTML=state.ocr.words.map(w=>{
+    const c=document.createElement('canvas');c.width=w.box.width+8;c.height=w.box.height+8;
+    c.getContext('2d').drawImage(state.ocr.canvas,w.box.x-4,w.box.y-4,c.width,c.height,0,0,c.width,c.height);
+    return `<div class="ocr-word${w.confidence<85?' uncertain':''}"><label><input type="checkbox" data-ocr-select="${w.id}" ${w.selected?'checked':''} ${w.safeBackground?'':'disabled'}/>Replace</label><img src="${c.toDataURL()}" alt="Source crop for ${escapeXml(w.originalText)}"/><input data-ocr-text="${w.id}" value="${escapeXml(w.text)}" maxlength="500" aria-label="Correct recognized word ${escapeXml(w.originalText)}"/><small>${w.confidence.toFixed(0)} · ${!w.safeBackground?'mixed background · kept':w.confidence<85?'check carefully':'review label'}</small></div>`;
+  }).join('')||'<p>No text found. Try another layout, a sharper image, or outline-only tracing.</p>';
+  $('#ocr-build').disabled=!state.ocr.words.length;
+}
+async function scanOcr(){
+  if(!$('#ocr-download-consent').checked){status('Please allow the OCR download first. Your image is not uploaded.',true);return;}
+  setBusy(true);state.controller=new AbortController();const timer=setTimeout(()=>state.controller?.abort(),180000);
+  try{
+    const canvas=document.createElement('canvas'),w=state.source.naturalWidth,h=state.source.naturalHeight;
+    const factor=Math.min(2,2400/Math.max(w,h),Math.sqrt(4e6/(w*h)));
+    canvas.width=Math.max(1,Math.round(w*factor));canvas.height=Math.max(1,Math.round(h*factor));
+    const ctx=canvas.getContext('2d',{willReadFrequently:true});ctx.fillStyle='#ffffff';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.drawImage(state.source,0,0,canvas.width,canvas.height);
+    const artwork=document.createElement('canvas');artwork.width=canvas.width;artwork.height=canvas.height;artwork.getContext('2d',{willReadFrequently:true}).drawImage(state.source,0,0,canvas.width,canvas.height);
+    const {recognizeOcr}=await import('./ocr-browser.js');
+    const language=$('#ocr-language').value;
+    status('Loading OCR engine… your image stays local.');
+    const words=await recognizeOcr(canvas,{artwork,language,layout:$('#ocr-layout').value,allowDownload:true,signal:state.controller.signal,onProgress:m=>status(`OCR: ${m}`)});
+    state.ocr={canvas:artwork,words,language};renderOcrReview();status(`${words.length} words found. Check the crops and corrections, then build with reviewed text.`);
+  }catch(error){status(error.name==='AbortError'?'OCR cancelled or timed out.':error.message,true);}finally{clearTimeout(timer);state.controller=null;setBusy(false);$('#ocr-build').disabled=!state.ocr?.words.length;}
+}
+async function buildOcr(){
+  if(state.busy||!state.ocr)return;setBusy(true);status('Removing reviewed glyphs, then tracing the artwork…');
+  try{
+    const {maskWords,appendOcrText}=await import('./ocr-core.js');const original=state.ocr.canvas;
+    const pixels=maskWords(original.getContext('2d',{willReadFrequently:true}).getImageData(0,0,original.width,original.height),state.ocr.words);
+    const masked=document.createElement('canvas');masked.width=original.width;masked.height=original.height;
+    masked.getContext('2d').putImageData(new ImageData(pixels.data,pixels.width,pixels.height),0,0);
+    const trace=document.createElement('canvas'),factor=Math.min(1,768/Math.max(masked.width,masked.height));trace.width=Math.max(1,Math.round(masked.width*factor));trace.height=Math.max(1,Math.round(masked.height*factor));
+    trace.getContext('2d').drawImage(masked,0,0,trace.width,trace.height);
+    const scene=appendOcrText(await traceCanvas(trace),state.ocr.words,original.width,original.height);
+    saveHistory();showScene(scene);status(`${scene.nodes.filter(n=>n.type==='text').length} editable text labels + vector artwork ready. Check the source before export.`);
+  }catch(error){status(error.message,true);}finally{state.cancelTrace=null;setBusy(false);}
 }
 async function convert(){
   if(!state.source||state.busy)return;
+  if(state.mode==='ocr'){await scanOcr();return;}
   if(state.mode==='ai'&&(!$('#api-endpoint').value||!$('#api-model').value||!$('#ai-consent').checked)){$('#ai-dialog').showModal();return;}
   setBusy(true);status(state.mode==='ai'?'Reconstructing with your vision provider…':'Tracing colors and curves locally…');
   try{
@@ -125,14 +183,7 @@ async function convert(){
       state.controller=new AbortController();const timer=setTimeout(()=>state.controller.abort(),180000);
       try{scene=await rebuildImage({endpoint:$('#api-endpoint').value,key:$('#api-key').value,model:$('#api-model').value,image:canvas.toDataURL('image/png'),width:canvas.width,height:canvas.height,consent:$('#ai-consent').checked,signal:state.controller.signal});}finally{clearTimeout(timer);state.controller=null;}
     }else{
-      scene=await new Promise((resolve,reject)=>{
-        const worker=new Worker(new URL('./trace.worker.js',import.meta.url),{type:'module'});state.worker=worker;
-        const timer=setTimeout(()=>{worker.terminate();state.worker=null;reject(new Error('Trace took too long. Try fewer colors or a simpler image.'));},60000);
-        worker.onmessage=e=>{clearTimeout(timer);worker.terminate();state.worker=null;e.data.error?reject(new Error(e.data.error)):resolve(e.data.scene);};
-        worker.onerror=()=>{clearTimeout(timer);worker.terminate();state.worker=null;reject(new Error('Tracing worker failed. Try a simpler image.'));};
-        state.cancelTrace=()=>{clearTimeout(timer);worker.terminate();state.worker=null;reject(new Error('Conversion cancelled.'));};
-        worker.postMessage({image:ctx.getImageData(0,0,canvas.width,canvas.height),colors:Number($('#colors').value),detail:Number($('#detail').value)});
-      });
+      scene=await traceCanvas(canvas);
     }
     saveHistory();showScene(scene);status(scene.engine==='local-trace'?`${scene.nodes.length} vector paths ready. Download or edit layers.`:`${scene.nodes.length} reconstructed layers ready. Check labels and layout.`);
   }catch(error){status(error.name==='AbortError'?'AI request cancelled or timed out.':error.message,true);}finally{state.cancelTrace=null;setBusy(false);}
@@ -148,6 +199,10 @@ document.addEventListener('paste',e=>{if(['INPUT','TEXTAREA'].includes(document.
 $('#try-sample').onclick=()=>loadSample().catch(error=>status(error.message,true));
 $('#open-example').onclick=()=>{saveHistory();showScene(sampleScene);status('Editable example ready. This is an authored scene, not an automatic reconstruction.');};
 $('#convert').onclick=convert;$('#cancel').onclick=()=>{state.controller?.abort();state.cancelTrace?.();};
+$('#ocr-build').onclick=buildOcr;
+$('#ocr-words').oninput=e=>{const w=state.ocr?.words.find(w=>w.id===e.target.dataset.ocrText);if(w)w.text=e.target.value;};
+$('#ocr-words').onchange=e=>{const w=state.ocr?.words.find(w=>w.id===e.target.dataset.ocrSelect);if(w&&w.safeBackground)w.selected=e.target.checked;};
+$('#ocr-review-export').onclick=async()=>{if(!state.ocr)return;const {reviewData}=await import('./ocr-core.js');download(new Blob([JSON.stringify(reviewData(state.ocr.words,state.ocr.canvas.width,state.ocr.canvas.height,state.ocr.language),null,2)],{type:'application/json'}),outputName(state.file.name,'ocr-review.json'));};
 document.querySelectorAll('[data-mode]').forEach(button=>button.onclick=()=>setMode(button.dataset.mode));
 $('#settings').onclick=()=>$('#ai-dialog').showModal();$('#clear-key').onclick=()=>{$('#api-key').value='';$('#api-endpoint').value='';$('#api-model').value='';$('#ai-consent').checked=false;};
 $('#copy-prompt').onclick=async()=>{try{await navigator.clipboard.writeText(SCENE_PROMPT);status('Reconstruction prompt copied. Attach your image in your AI chat, then import its JSON.');}catch{status('Clipboard access unavailable. The prompt is in docs/ai-rebuild.md.',true);}};
@@ -174,4 +229,5 @@ window.addEventListener('beforeunload',()=>{if(state.originalUrl)URL.revokeObjec
 const fileSection=document.createElement('section');fileSection.id='files';fileSection.className='studio file-studio';
 $('#how-it-works').before(fileSection);
 const filesLink=document.createElement('a');filesLink.href='#files';filesLink.textContent='PDF & slides';$('.header nav').prepend(filesLink);
-mountFileStudio(fileSection,async file=>{setMode('trace');await loadFile(file);$('#studio').scrollIntoView({behavior:'smooth'});});
+mountFileStudio(fileSection,async file=>{setMode('ocr');await loadFile(file);$('#studio').scrollIntoView({behavior:'smooth'});});
+setMode('ocr');
