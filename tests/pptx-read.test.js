@@ -1,0 +1,10 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import JSZip from 'jszip';
+import {existsSync} from 'node:fs';
+async function core(){const url=new URL('../src/pptx-read.js',import.meta.url);assert.ok(existsSync(url),'PPTX reader exists');return import(url);}
+async function fixture(){const zip=new JSZip();zip.file('[Content_Types].xml','<Types/>');zip.file('ppt/presentation.xml','<presentation/>');zip.file('ppt/slides/slide2.xml','<a:t>Second</a:t>');zip.file('ppt/slides/slide1.xml','<a:t>A &amp; B</a:t><a:t>&#945;</a:t>');zip.file('ppt/media/image1.png',new Uint8Array([1,2,3]));return zip.generateAsync({type:'uint8array'});}
+test('PowerPoint text uses slide order and decodes escaped text without executing XML',async()=>{const {pptxText}=await core();assert.match(await pptxText(await fixture()),/A & B\nα[\s\S]*Second/);});
+test('PowerPoint media extraction exposes only supported images',async()=>{const {pptxImages}=await core();const result=await pptxImages(await fixture());assert.equal(result.length,1);assert.equal(result[0].name,'image1.png');assert.deepEqual([...result[0].bytes],[1,2,3]);});
+test('reader rejects arbitrary ZIPs and XML entities',async()=>{const {pptxText}=await core();const zip=new JSZip();zip.file('ppt/slides/slide1.xml','<!DOCTYPE root><a:t>x</a:t>');await assert.rejects(async()=>pptxText(await zip.generateAsync({type:'uint8array'})),/PowerPoint/);zip.file('[Content_Types].xml','<Types/>');zip.file('ppt/presentation.xml','<presentation/>');await assert.rejects(async()=>pptxText(await zip.generateAsync({type:'uint8array'})),/active XML/);});
+test('reordered presentations follow relationship order, not slide part numbers',async()=>{const {pptxText}=await core();const zip=await JSZip.loadAsync(await fixture());zip.file('ppt/presentation.xml','<p:sldId r:id="r2"/><p:sldId r:id="r1"/>');zip.file('ppt/_rels/presentation.xml.rels','<Relationship Id="r1" Target="slides/slide1.xml"/><Relationship Id="r2" Target="slides/slide2.xml"/>');const text=await pptxText(await zip.generateAsync({type:'uint8array'}));assert.match(text,/Second[\s\S]*A & B/);});

@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "A local-first image conversion studio with editable SVG and native PowerPoint export.",
+  "description": "A local-first image, PDF and PowerPoint workspace with editable SVG and native-shape export.",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "build": "vite build",

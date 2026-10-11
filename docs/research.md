@@ -21,6 +21,12 @@ Local raster input
   ├─ consent + user's vision API → scene ──┼─ shared scene editor → SVG / native PPTX / JSON
   └─ browser canvas → PNG / JPEG / WebP    │
                  Imported scene JSON ────┘
+
+Local PDF / images / PPTX
+  ├─ PDF-lib → merge / select / reorder / split / rotate / image PDF
+  ├─ PDF.js → page images / text / single page → figure studio
+  ├─ rendered PDF pages → PPTX image slides or native text + raster artwork
+  └─ bounded PPTX ZIP/XML extraction → slide text / embedded raster images
 ```
 
 The scene schema accepts only rectangles, ellipses, lines, text, and absolute M/L/Q/C/Z paths, with finite coordinates and restricted solid colors. It never accepts scripts, arbitrary SVG strings, image URLs, HTML, or raster nodes. Browser-origin tracing preserves alpha and hole contours. Both SVG and PowerPoint use the same geometry rather than independently hallucinated outputs.
@@ -29,7 +35,9 @@ The scene schema accepts only rectangles, ellipses, lines, text, and absolute M/
 
 Unit tests inspect the generated PPTX ZIP/XML for native text and custom geometry, multiple subpaths, quadratic curves, and absence of raster media. Browser tests run tracing on an authored raster sample, inspect actual downloaded vector files, edit a scene label, export each implemented format, and check five responsive widths and a very narrow image. Both the native-shape example and actual traced-path PPTX were opened and rendered with LibreOffice for release QA; this is not a check of every PowerPoint version. Provider request/response handling is tested with mocks, not a live model. These establish functionality; they do not measure reconstruction accuracy on general images.
 
-No third-party model weights or large datasets were downloaded. We did not fork an existing product or copy its interface. No quantitative comparison or superiority claim is supported yet.
+The document workspace also has unit and browser checks for actual PDF/PPTX downloads, native text-box XML, text removal from editable-slide backgrounds, page counts/rotation, merge, and PPTX text/media extraction. These check supported formats, not perfect conversion fidelity. PDF artwork remains raster in both PDF-to-slide modes; scanned text requires an OCR system not included here. Word/Excel conversions, Office-to-PDF rendering, encrypted files, and PDF compression are not implemented.
+
+No third-party model weights or large datasets were downloaded. Eight source-only reference repositories were cloned into an ignored local research workspace for inspection. They are not shipped as conversion backends. No quantitative comparison or superiority claim is supported yet.
 
 ## Research scope update
 
@@ -45,7 +53,7 @@ Use a small, licensed paired set covering diagrams, icons, charts, formulas, and
 
 ## Closest published work: a focused reading map
 
-Updated 2026-10-12 after checking publisher records, author repositories, and selected paper sections. This is not an exhaustive review. Method, evaluation, and limitations sections were inspected for SliDer, AutoFigure-Edit, and StarVector, using their linked arXiv versions; final venues were checked separately. Other entries below are abstract/project-page or README-level readings, not reproduced results. None of these additional models is integrated.
+Updated 2026-10-12 after checking publisher records, author repositories, selected paper sections, and source entry points. This is not an exhaustive review. Method, evaluation, and limitations sections were inspected for SliDer, AutoFigure-Edit, StarVector, and VectorHarness, using their linked arXiv versions; final venues were checked separately where applicable. Other entries below are abstract/project-page or README-level readings, not reproduced results. None of these additional models is integrated.
 
 | Problem | Work and verified publication status | What to borrow or investigate |
 | --- | --- | --- |
@@ -54,7 +62,8 @@ Updated 2026-10-12 after checking publisher records, author repositories, and se
 | Raster/text → SVG primitives | StarVector, CVPR 2025; OmniSVG, NeurIPS 2025 (sources above) | Primitive-aware representations instead of treating every component as a contour |
 | Layered reconstruction | [LayerTracer, ICCV 2025](https://openaccess.thecvf.com/content/ICCV2025/html/Song_LayerTracer_Cognitive-Aligned_Layered_SVG_Synthesis_via_Diffusion_Transformer_ICCV_2025_paper.html); LIVE, CVPR 2022; AmodalSVG, arXiv preprint (above) | Layer organization, geometry optimization, and geometrically complete semantic layers already have prior art |
 | Raster charts → structured editing | [Chart2SVG, accepted at VIS 2026 according to its author project page](https://yunhaiwang.net/vis2026/Chart2SVG/index.html) | Semantic chart components, dependency graphs, and rendering-aware training already exist |
-| Practical raster → PPTX | Image-to-PPT (repository above; no conference claim) | OCR/layout reconstruction and shared scene export; its README explicitly leaves arrows and connectivity for manual correction |
+| Practical raster → PPTX | Image-to-PPT (repository above; no conference claim) | The current source includes geometric arrow/connector inference and snapping. This is a necessary simple relation baseline, even where README descriptions lag behind the code |
+| Relation-preserving scientific reconstruction | [VectorHarness, September 2026 preprint](https://arxiv.org/abs/2609.13294), [official repository](https://github.com/CSU-JPG/Edit_Agent) | Native objects, operational relations, affected-region repair and deterministic exports directly overlap the original graph/local-repair idea. Its inspected repository contains a short README, not runnable implementation |
 | Editing existing vectors | VectorEdits and Vector-Bench (preprint records above) | Preservation and surgical changes are nearby prior art, not automatic novelty |
 
 ### SliDer: learn layout before polishing appearance
@@ -84,11 +93,14 @@ Our working concern is that a convincing rendering can hide an incorrect documen
 
 | Candidate | Testable hypothesis | Closest-work warning / reason to stop |
 | --- | --- | --- |
-| Edit-consistent diagram recovery | Explicit, source-grounded attachment constraints reduce broken relationships after moving a module, without inventing connections | Chart2SVG already uses dependency graphs; other diagram work needs a closer topology review. A scene graph alone is not new. Stop if simple geometric attachment is sufficient |
-| Budgeted local repair | Selecting specific uncertain objects for repair reduces collateral changes at matched cost compared with whole-document refinement | SliDer and AutoFigure-Edit already refine outputs. Region selection, uncertainty, and compute allocation need a distinct mechanism. Stop if ordinary cropped prompting matches it |
+| Edit-consistent diagram recovery | Explicit, source-grounded attachment constraints reduce broken relationships after moving a module, without inventing connections | VectorHarness directly covers relation-preserving reconstruction and affected-region repair; Chart2SVG uses dependency graphs. This is not a stand-alone novel contribution |
+| Budgeted local repair | Selecting specific uncertain objects for repair reduces collateral changes at matched cost compared with whole-document refinement | VectorHarness, SliDer and AutoFigure-Edit already cover related refinement. Ordinary local repair is not the research delta |
 | Critical-content preservation | Separately verifying labels and arrow direction detects scientific errors that a visual-similarity score misses | Existing text/structure metrics cover part of this problem. Stop if the remaining benefit is only a UI checklist or ordinary OCR |
+| Selective edit-response recovery | A small relation scorer trained on edit responses, paired with candidate-disagreement checks, reduces incorrect executed edits at useful coverage and limited confirmation burden | A candidate direction, not established novelty. Audit selective prediction/active querying; compare geometry, edge loss only and threshold abstention. Candidate omission can invalidate apparent agreement |
 
-The most promising starting question is **whether reconstruction remains correct under an ordinary downstream edit**, rather than whether its preview looks attractive. This is a tentative prioritization, not a novelty or conference-readiness claim. Format conversion itself is an engineering deliverable, not evidence of an ICML contribution.
+The refined question is **when uncertain reconstructed dependencies support a safe downstream edit, and when the system should ask for a minimal clarification**. Different hidden programs can have identical initial renders but different edit responses. Local prototype checks demonstrate this possibility and conditional closure propagation with supplied graphs; they do not recover graphs from pixels, train a model, or estimate real-world accuracy. Candidate agreement is conditional on retaining the intended graph. Format conversion remains an engineering deliverable, not evidence of an ICML contribution.
+
+The selective-learning boundary matters too: [SOLA, ICML 2018](https://proceedings.mlr.press/v80/garcia18a.html) permits abstention on structured labels; [reject-option strategies, JMLR 2023](https://www.jmlr.org/papers/v24/21-0048.html) include structured outputs; [risk-controlling prediction sets](https://arxiv.org/abs/2101.02703) calibrate set-valued uncertainty. Ordinary abstention, uncertainty sets and risk/coverage plots are not new contributions. The proposed learning question needs matched selective baselines, candidate-omission accounting, and an active-query audit.
 
 ### A small diagnostic before training
 

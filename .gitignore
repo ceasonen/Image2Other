@@ -5,3 +5,5 @@ dist/
 *.local
 .env*
 !.env.example
+research/
+project_context.md
