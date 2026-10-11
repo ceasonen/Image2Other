@@ -72,7 +72,7 @@ Vite's base path is `/Image2Other/`. Change it in `vite.config.js` if you fork t
 
 The next meaningful improvements are better text/layout recovery, local OCR-assisted rebuilding, preservation of difficult artwork, batch conversion, and a public paired-input benchmark with both visual fidelity and editability checks. None are presented as already implemented. Contributions should include a minimal licensed example, expected editable elements, and the actual output.
 
-This is an early usable release, not a claim of better accuracy than StarVector, LIVE, or existing image-to-PPT systems. [Technical decisions and source provenance](docs/research.md)
+This is an early usable release, not a claim of better accuracy than StarVector, LIVE, or existing image-to-PPT systems. Our [focused research map](docs/research.md#closest-published-work-a-focused-reading-map) distinguishes published methods, engineering references, and actual integrations. It covers SliDer, AutoFigure/AutoFigure-Edit, primitive-aware SVG models, layered reconstruction, and structured chart editing. [Candidate questions and a small diagnostic plan](docs/research.md#candidate-research-questions-not-established-innovations) describe what would need to be demonstrated before making a research claim. No third-party model weights or large datasets have been downloaded.
 
 ## License
 

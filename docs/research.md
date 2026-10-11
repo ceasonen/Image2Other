@@ -8,7 +8,7 @@ Checked 2026-10-12. Primary paper/project sources only. This is an engineering r
 | VTracer | [Author's repository](https://github.com/visioncortex/vtracer) and [technical description](https://www.visioncortex.org/vtracer-docs) | Color stacking and compact contours are useful alternatives to large raw paths | Read for algorithm/design context only. No Rust implementation or binaries copied |
 | StarVector: Generating Scalable Vector Graphics Code from Images and Text | [CVPR 2025 paper](https://openaccess.thecvf.com/content/CVPR2025/papers/Rodriguez_StarVector_Generating_Scalable_Vector_Graphics_Code_from_Images_and_Text_CVPR_2025_paper.pdf), [author's repository](https://github.com/joanrod/star-vector) | Structured primitives and text matter for meaningful editing, not just pixel similarity | Motivates the semantic scene route. No weights downloaded or model integrated; the app uses the user's compatible provider |
 | Towards Layer-wise Image Vectorization | [arXiv record](https://arxiv.org/abs/2206.04655), [CVPR 2022 authors' code](https://github.com/Picsart-AI-Research/LIVE-Layerwise-Image-Vectorization) | Layer structure and path count should be considered alongside visual appearance | Research reference only; no optimization pipeline copied or claimed |
-| OmniSVG: A Unified Scalable Vector Graphics Generation Model | [arXiv record](https://arxiv.org/abs/2504.06263), [authors' project](https://github.com/OmniSVG/OmniSVG) | Image-to-SVG models are another future provider route | Research reference only; no weights, data, or code copied |
+| OmniSVG: A Unified Scalable Vector Graphics Generation Model | [NeurIPS 2025 proceedings](https://papers.nips.cc/paper_files/paper/2025/hash/a510f05a574d4203ef3952973672fe2f-Abstract-Conference.html), [authors' project](https://github.com/OmniSVG/OmniSVG) | Image-to-SVG models are another future provider route | Research reference only; no weights, data, or code copied |
 | Image-to-PPT | [Maintainer's repository](https://github.com/7zSun/Image-to-PPT), Apache-2.0 | OCR/layout/detection/segmentation can offer a local semantic reconstruction route | Workflow reference only. Our initial app does not implement or advertise this pipeline |
 | FigEdit | [Maintainer's repository](https://github.com/giszzt/figedit), MIT with upstream notices | SVG-to-PPTX should create native individual objects, with honest fallback reporting | Workflow reference only; no exporter copied |
 | PptxGenJS | [Official repository](https://github.com/gitbrent/PptxGenJS), [native-shape documentation](https://gitbrent.github.io/PptxGenJS/docs/api-shapes.html), [maintainer's custom geometry example](https://github.com/gitbrent/PptxGenJS/blob/master/demos/modules/demo_shape.mjs) | Native custom geometry can retain multiple contours and quadratic/cubic curves | Used as a pinned npm dependency. Our scene-to-native-shape adapter is original |
@@ -42,3 +42,60 @@ A research track should start with reproducible failures on small, redistributab
 ## What a useful future evaluation needs
 
 Use a small, licensed paired set covering diagrams, icons, charts, formulas, and complex illustrations. Record source/output dimensions, model/provider settings, time and API cost where applicable. Evaluate visual fidelity separately from text correctness, editable-text recovery, object count, path count, and ability to move/restyle a meaningful component. Report failures and raster fallbacks explicitly. Do not treat an authored demo scene as an automatic recovery result.
+
+## Closest published work: a focused reading map
+
+Updated 2026-10-12 after checking publisher records, author repositories, and selected paper sections. This is not an exhaustive review. Method, evaluation, and limitations sections were inspected for SliDer, AutoFigure-Edit, and StarVector, using their linked arXiv versions; final venues were checked separately. Other entries below are abstract/project-page or README-level readings, not reproduced results. None of these additional models is integrated.
+
+| Problem | Work and verified publication status | What to borrow or investigate |
+| --- | --- | --- |
+| Raster slides → editable document | [SliDer, AAAI 2026](https://ojs.aaai.org/index.php/AAAI/article/view/42464) | Spatial priors and explicit text/image assets; account for raster assets in the output |
+| Scientific figure generation → editable layout | [AutoFigure, ICLR 2026](https://iclr.cc/Downloads/2026) and [AutoFigure-Edit, ACL 2026 System Demonstrations](https://aclanthology.org/2026.acl-demo.6/) | The two papers have different venues and tasks. Structural indexing and appearance extraction are useful engineering references |
+| Raster/text → SVG primitives | StarVector, CVPR 2025; OmniSVG, NeurIPS 2025 (sources above) | Primitive-aware representations instead of treating every component as a contour |
+| Layered reconstruction | [LayerTracer, ICCV 2025](https://openaccess.thecvf.com/content/ICCV2025/html/Song_LayerTracer_Cognitive-Aligned_Layered_SVG_Synthesis_via_Diffusion_Transformer_ICCV_2025_paper.html); LIVE, CVPR 2022; AmodalSVG, arXiv preprint (above) | Layer organization, geometry optimization, and geometrically complete semantic layers already have prior art |
+| Raster charts → structured editing | [Chart2SVG, accepted at VIS 2026 according to its author project page](https://yunhaiwang.net/vis2026/Chart2SVG/index.html) | Semantic chart components, dependency graphs, and rendering-aware training already exist |
+| Practical raster → PPTX | Image-to-PPT (repository above; no conference claim) | OCR/layout reconstruction and shared scene export; its README explicitly leaves arrows and connectivity for manual correction |
+| Editing existing vectors | VectorEdits and Vector-Bench (preprint records above) | Preservation and surgical changes are nearby prior art, not automatic novelty |
+
+### SliDer: learn layout before polishing appearance
+
+For raster slides, contour tracing loses editable words and document structure. SliDer addresses this by fine-tuning VLMs with SVG templates, optional detector-derived boxes, and previous predictions. Its reported slide experiments support text/layout recovery; the ablation shows that visual refinement need not improve box alignment. The practical insight is to ground layout rather than assume repeated prompting fixes everything. Its output retains cropped PNG assets, not exclusively native vectors. The [official repository](https://github.com/adamhazimeh/SliDer) still labels code as forthcoming on the check date. For Image2Other this is a method reference, not an available backend. [Method and ablation](https://arxiv.org/html/2511.13478v1)
+
+### AutoFigure-Edit: separate structure from appearance
+
+Scientific illustrations need both controllable layout and preserved visual style. AutoFigure-Edit decomposes a raster draft into indexed components, extracts transparent image assets, generates/refines an SVG template, and inserts those assets. The paper reports generation evaluations and a usability study, including PNG-to-SVG feedback; these are not our own native-PPTX accuracy measurements. Its limitations include foundation-model dependence and cascading segmentation errors. The useful lesson is stable component identity. Its hybrid output can preserve artwork without converting that artwork into editable paths. [Method, evaluation, and limitations](https://arxiv.org/html/2603.06674v1) · [Official code](https://github.com/ResearAI/AutoFigure-Edit)
+
+### StarVector: select meaningful primitives
+
+When text or circles become many paths, visual resemblance does not imply useful structure. StarVector connects image encoding to autoregressive SVG-code generation, learning primitive selection from paired examples. Its diagram results illustrate disagreements between pixel and perceptual metrics. The authors identify context-length, image-resolution, and non-standard-SVG limitations. Borrow the representation and evaluation lessons, not an unsupported claim that a generic API reproduces its model. [Method, results, and limitations](https://arxiv.org/html/2312.11556v4)
+
+## Engineering priorities, not research claims
+
+1. Recover text and layout before adding more export extensions. OCR and region proposals should support an inspectable scene, not silently overwrite labels.
+2. Add component grouping and stable IDs so moving a module does not mean selecting hundreds of unrelated paths. Connector endpoints need their own representation and verification.
+3. Diagnose rendered discrepancies and propose limited changes, with a visible diff and undo. Existing refinement systems make this an engineering improvement until a distinct mechanism is demonstrated.
+4. Keep strict-vector and future hybrid reconstruction separate. Hybrid assets can be valuable, but the interface must disclose which elements are text, native shapes, paths, or pixels. The current scene remains strict-vector; arbitrary SVG/HTML from papers cannot be imported safely as-is.
+
+These are priorities for later implementation, not newly shipped features. Read component/model licenses and attribution terms before reusing code or assets; a repository license does not automatically cover weights, datasets, trademarks, or every dependency.
+
+## Candidate research questions, not established innovations
+
+Our working concern is that a convincing rendering can hide an incorrect document. We have not yet demonstrated that this is a frequent failure of the closest methods.
+
+| Candidate | Testable hypothesis | Closest-work warning / reason to stop |
+| --- | --- | --- |
+| Edit-consistent diagram recovery | Explicit, source-grounded attachment constraints reduce broken relationships after moving a module, without inventing connections | Chart2SVG already uses dependency graphs; other diagram work needs a closer topology review. A scene graph alone is not new. Stop if simple geometric attachment is sufficient |
+| Budgeted local repair | Selecting specific uncertain objects for repair reduces collateral changes at matched cost compared with whole-document refinement | SliDer and AutoFigure-Edit already refine outputs. Region selection, uncertainty, and compute allocation need a distinct mechanism. Stop if ordinary cropped prompting matches it |
+| Critical-content preservation | Separately verifying labels and arrow direction detects scientific errors that a visual-similarity score misses | Existing text/structure metrics cover part of this problem. Stop if the remaining benefit is only a UI checklist or ordinary OCR |
+
+The most promising starting question is **whether reconstruction remains correct under an ordinary downstream edit**, rather than whether its preview looks attractive. This is a tentative prioritization, not a novelty or conference-readiness claim. Format conversion itself is an engineering deliverable, not evidence of an ICML contribution.
+
+### A small diagnostic before training
+
+Use self-authored, redistributable diagrams with known text, object IDs, and connector endpoints. Keep a discovery set separate from held-out cases; variants of one underlying diagram must remain in the same split. Initial case counts are for diagnosis, not powered statistical claims.
+
+Every method should receive the same raster inputs and predefined edits, such as replacing a label or moving one connected block. Compare a one-pass provider, a simple OCR/layout baseline when available, whole-scene refinement, and a candidate local-repair variant with the same provider/version, resolution, and stated call/token budget. Do not label an unavailable paper implementation as a reproduced baseline.
+
+Treat the original diagram as the independent unit: repeated runs and multiple edits are nested measurements, not extra independent samples. Randomize processing order with a recorded seed, distribute methods across API sessions, and blind manual output checks. Separately record label correctness, directed connectivity, unaffected-object preservation, visual error, latency/cost, and native PPTX object validity. Include clean-source exports as a positive control for the edit/export checks.
+
+Continue only if recurring failures survive strong simple alternatives and the proposed mechanism addresses them without sacrificing correctness elsewhere. Otherwise narrow the product scope or abandon that research hypothesis. No diagnostic experiment has been run yet; no training, model-weight download, or large-data transfer is authorized by this plan.
