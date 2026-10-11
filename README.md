@@ -44,7 +44,7 @@ npm run build
 npm run preview
 ```
 
-Optional real-browser smoke tests use an isolated Chrome instance with a DevTools port:
+The deployment workflow also runs real-browser smoke tests before publishing. To run them locally, start an isolated Chrome instance with a DevTools port:
 
 ```sh
 node tests/browser.mjs http://127.0.0.1:4178/Image2Other/ 9226
@@ -64,7 +64,7 @@ Tests cover actual native PPTX XML, path subcomponents and curves, safe scene pa
 
 ## Deployment
 
-The independent repository publishes at `https://ceasonen.github.io/Image2Other/`, underneath Cheng Chen's homepage. In repository Settings → Pages, select **GitHub Actions** as the build source. The included workflow tests and builds on pull requests, and deploys only from `main`.
+The independent repository publishes at `https://ceasonen.github.io/Image2Other/`, underneath Cheng Chen's homepage. The personal homepage only links to this tool; its layouts, styles, dependencies, and build stay separate. The project URL uses the repository's case-sensitive name. In repository Settings → Pages, select **GitHub Actions** as the build source. The included workflow runs unit tests, a production build, and actual browser conversions on pull requests, and deploys only from `main` after those checks pass.
 
 Vite's base path is `/Image2Other/`. Change it in `vite.config.js` if you fork the project under another name. Do not copy the application source into your personal homepage repository. Build output lives in `dist/`; dependencies and local test outputs are ignored.
 

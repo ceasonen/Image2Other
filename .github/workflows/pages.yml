@@ -12,7 +12,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -21,6 +21,22 @@ jobs:
       - run: npm ci --ignore-scripts --no-audit --no-fund
       - run: npm test
       - run: npm run build
+      - name: Verify conversions in a real browser
+        shell: bash
+        run: |
+          npm run preview > "$RUNNER_TEMP/image2other-preview.log" 2>&1 &
+          studio_preview_pid=$!
+          studio_chrome_profile=$(mktemp -d "$RUNNER_TEMP/image2other-chrome.XXXXXX")
+          google-chrome --headless --no-sandbox --disable-gpu --remote-debugging-port=9226 --user-data-dir="$studio_chrome_profile" about:blank > "$RUNNER_TEMP/image2other-chrome.log" 2>&1 &
+          studio_chrome_pid=$!
+          trap 'kill "$studio_preview_pid" "$studio_chrome_pid" 2>/dev/null || true' EXIT
+          for studio_attempt in {1..30}; do
+            if curl -fsS http://127.0.0.1:4178/Image2Other/ > /dev/null && curl -fsS http://127.0.0.1:9226/json > /dev/null; then
+              break
+            fi
+            sleep 1
+          done
+          node tests/browser.mjs http://127.0.0.1:4178/Image2Other/ 9226
       - uses: actions/upload-pages-artifact@v3
         if: github.event_name != 'pull_request'
         with:

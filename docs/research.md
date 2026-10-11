@@ -31,6 +31,14 @@ Unit tests inspect the generated PPTX ZIP/XML for native text and custom geometr
 
 No third-party model weights or large datasets were downloaded. We did not fork an existing product or copy its interface. No quantitative comparison or superiority claim is supported yet.
 
+## Research scope update
+
+Our immediate priority is reliable input, conversion, editing, and export—not a paper claim. Connecting a vision API to an SVG/PPTX exporter is useful engineering, but is not by itself an established research contribution.
+
+Additional nearby work checked through the authors' arXiv titles and abstracts on 2026-10-12 (not a full-paper methodological review): [VectorEdits: A Dataset and Benchmark for Instruction-Based Editing of Vector Graphics](https://arxiv.org/abs/2506.15903) covers instruction-guided vector editing; [AmodalSVG: Amodal Image Vectorization via Semantic Layer Peeling](https://arxiv.org/abs/2604.10940) targets independent, geometrically complete semantic layers; [Vector-Bench: Can Models Surgically Edit SVG Code?](https://arxiv.org/abs/2607.19056) separates requested repairs from preservation of other structure. Together with StarVector, these show why “semantic SVG” or “better editability” alone cannot establish novelty.
+
+A research track should start with reproducible failures on small, redistributable examples and a closer review of existing methods. Keep visual fidelity, correct words, meaningful object structure, and successful downstream edits separate. No claim of a novel learning method, benchmark, accepted paper, or venue-level readiness is made here. Existing software tests establish that supported operations run, not that image understanding is solved.
+
 ## What a useful future evaluation needs
 
 Use a small, licensed paired set covering diagrams, icons, charts, formulas, and complex illustrations. Record source/output dimensions, model/provider settings, time and API cost where applicable. Evaluate visual fidelity separately from text correctness, editable-text recovery, object count, path count, and ability to move/restyle a meaningful component. Report failures and raster fallbacks explicitly. Do not treat an authored demo scene as an automatic recovery result.
