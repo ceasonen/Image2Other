@@ -50,6 +50,8 @@ Tesseract.js 7 / Tesseract LSTM runs in a browser worker, using English or Engli
 
 **Review mask** opens a source/erase-map and a preview of remaining artwork before native text is added. Protect artwork, clear protection, undo or reset the draft; only Confirm mask & replace saves it. Closing discards draft changes. Suggest protection uses a small connected-component rule: foreground touching the crop's exterior or a long thin component is kept. It is optional, not a learned separator. Joined text/lines can be kept together, leaving old glyphs; short contained shapes can be missed. Inspect and adjust rather than treating the proposal as accurate. A confirmed mask can override the crossing-stroke refusal, but never the mixed-background refusal. Mask crops are capped at 262,144 pixels, 64 strokes and 2,048 points; no new model download is needed.
 
+Single Latin letter/digit labels, including parenthesized/bracketed identifiers, are not preselected even at high confidence: `B/8` and `I/1` confusions can change scientific meaning. Check the crop and explicitly select/correct them. This deliberately reduces automatic coverage, does not guess corrections and does not catch all formula/identifier errors.
+
 Export review JSON v2 saves unverified OCR observations, local text edits, boxes, refusal reasons, replace decisions and confirmed mask instructions. A rename is not automatically an OCR correction, and mask confirmation is not verified segmentation ground truth. No XGBoost classifier is trained or bundled. Real-browser tests recognize authored raster words, inspect/draw/cancel/confirm a mask, edit a label and verify actual SVG text/path and native PPTX text/vector downloads; this is not a general OCR accuracy benchmark.
 
 ```sh

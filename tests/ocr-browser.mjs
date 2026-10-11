@@ -16,6 +16,7 @@ await fs.mkdir('.build/preview',{recursive:true});await fs.mkdir('.build/downloa
 const dir=await fs.mkdtemp(path.resolve('.build/downloads/ocr-'));
 try{
   await send('Browser.setDownloadBehavior',{behavior:'allow',downloadPath:dir});
+  await send('Network.enable');await send('Network.setCacheDisabled',{cacheDisabled:true});
   await send('Page.enable');await send('Page.navigate',{url});await wait(`document.readyState==='complete'`);
   assert.equal(await evaluate(`!!document.querySelector('[data-mode="ocr"]')`),true,'Text + vectors mode must exist');
   // Identical original PNG bytes on macOS/Linux; canvas-generated fonts differ across hosts.

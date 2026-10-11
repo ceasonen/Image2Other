@@ -17,6 +17,7 @@ await fs.mkdir('.build/downloads',{recursive:true});
 const downloadDir=await fs.mkdtemp(path.resolve('.build/downloads/run-'));
 try{
   await send('Browser.setDownloadBehavior',{behavior:'allow',downloadPath:downloadDir});
+  await send('Network.enable');await send('Network.setCacheDisabled',{cacheDisabled:true});
   await send('Page.enable');await send('Page.navigate',{url});await wait(`document.readyState==='complete'`);
   assert.equal(await evaluate(`!!document.querySelector('#try-sample')`),true,'Diagram sample control is available');
   assert.equal(await evaluate(`!!document.querySelector('#files-input')`),true,'Local PDF tools are available');

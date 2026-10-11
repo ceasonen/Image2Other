@@ -50,7 +50,10 @@ export function prepareWords(words,image){
     const ink=[],step=Math.max(1,Math.ceil(Math.sqrt(b.width*b.height/4096)));
     for(let y=b.y;y<b.y+b.height;y+=step)for(let x=b.x;x<b.x+b.width;x+=step){const c=pixel(image,x,y);if(distance(c,bg)>70)ink.push(c);}
     const fg=ink.length?[0,1,2].map(i=>ink.map(c=>c[i]).sort((a,b)=>a-b)[Math.floor(ink.length/2)]):[32,36,54];
-    return {...word,background:rgbHex(bg),backgroundAlpha,fill:rgbHex(fg),flatness,safeBackground,replacementBlock,selected:word.confidence>=OCR_THRESHOLD&&!replacementBlock};
+    // B/8, I/1 and similar one-character identifiers can be confidently wrong.
+    // This is a conservative review heuristic, never an automatic correction.
+    const reviewReason=/^(?:[A-Za-z0-9]|\(\s*[A-Za-z0-9]\s*\)|\[\s*[A-Za-z0-9]\s*\])$/.test(word.text.trim())?'short-identifier':null;
+    return {...word,background:rgbHex(bg),backgroundAlpha,fill:rgbHex(fg),flatness,safeBackground,replacementBlock,reviewReason,selected:word.confidence>=OCR_THRESHOLD&&!replacementBlock&&!reviewReason};
   });
 }
 export function canReplaceWord(word){return !!word?.safeBackground&&(!word.replacementBlock||reviewedMask(word));}
@@ -89,4 +92,4 @@ export function appendOcrText(scene,words,width,height){
   return validateScene({...scene,engine:'ocr-trace',nodes:[...scene.nodes,...text]});
 }
 export function reviewData(words,width,height,language){return {version:2,engine:'tesseract-lstm',language,width,height,trainedClassifier:false,annotationStatus:'unverified',
-  words:words.map(w=>({originalText:w.originalText,correctedText:w.text,textChangeKind:w.text===w.originalText?'unchanged':'unspecified',confidence:w.confidence,box:w.box,flatness:w.flatness,replacementBlock:w.replacementBlock??null,maskReview:reviewedMask(w)?JSON.parse(JSON.stringify(w.maskReview)):null,replace:replacements([w]).length===1}))};}
+  words:words.map(w=>({originalText:w.originalText,correctedText:w.text,textChangeKind:w.text===w.originalText?'unchanged':'unspecified',confidence:w.confidence,box:w.box,flatness:w.flatness,replacementBlock:w.replacementBlock??null,reviewReason:w.reviewReason??null,maskReview:reviewedMask(w)?JSON.parse(JSON.stringify(w.maskReview)):null,replace:replacements([w]).length===1}))};}

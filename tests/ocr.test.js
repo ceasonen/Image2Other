@@ -125,3 +125,17 @@ test('confirmed protection survives another selected label overlapping its box, 
   protectedWord.selected=false;
   assert.equal(maskWords(original,[protectedWord,overlapping]).data[(12*100+30)*4],255,'Unselected masks do not change the active conversion');
 });
+test('high-confidence short scientific identifiers require explicit checking, not guessed correction',async()=>{
+  const {prepareWords,maskWords,appendOcrText,reviewData}=await core(),original=image();
+  for(const text of ['(8)','[B]','A','7']){
+    const words=prepareWords([{id:'label',text,originalText:text,confidence:95,box:{x:10,y:10,width:40,height:20}}],original);
+    assert.equal(words[0].reviewReason,'short-identifier');assert.equal(words[0].selected,false);
+    assert.equal(words[0].text,text,'Do not invent B from an ambiguous recognized 8');
+    assert.deepEqual(maskWords(original,words).data,original.data);
+    assert.equal(appendOcrText({width:100,height:50,nodes:[]},words,100,50).nodes.length,0);
+    assert.equal(reviewData(words,100,50,'eng').words[0].reviewReason,'short-identifier');
+    words[0].selected=true;
+    assert.equal(appendOcrText({width:100,height:50,nodes:[]},words,100,50).nodes[0].text,text,'Manual selection remains possible');
+  }
+  assert.equal(prepareWords([{text:'Model',confidence:95,box:{x:10,y:10,width:40,height:20}}],original)[0].selected,true);
+});
