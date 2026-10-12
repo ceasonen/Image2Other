@@ -12,6 +12,7 @@ test('PowerPoint contains native text, shapes and vector curves, without raster 
   const zip = await JSZip.loadAsync(data);
   const xml = await zip.file('ppt/slides/slide1.xml').async('string');
   assert.match(xml, /Editable label/); assert.match(xml, /<a:custGeom>/);
+  assert.match(xml,/typeface="Times New Roman"/,'SVG and native PPTX text must share the default font');
   assert.equal((xml.match(/<a:moveTo>/g)||[]).length, 2);
   assert.match(xml, /<a:quadBezTo>/); assert.doesNotMatch(xml, /<p:pic>/);
   assert.equal(Object.keys(zip.files).filter(k => k.startsWith('ppt/media/') && !zip.files[k].dir).length, 0);

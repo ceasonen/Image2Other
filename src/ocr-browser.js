@@ -1,7 +1,8 @@
 import {ocrWords,prepareWords} from './ocr-core.js';
-export async function recognizeOcr(canvas,{language='eng',layout='11',allowDownload=false,onProgress=()=>{},signal,artwork=canvas}={}){
+import {cropCandidates} from './ocr-candidates.js';
+async function withWorker({language='eng',allowDownload=false,onProgress=()=>{},signal}={},task){
   if(!allowDownload)throw Error('Please allow the small OCR engine/language download first. Your image is not uploaded.');
-  if(!['eng','eng+chi_sim'].includes(language)||!['11','3','6'].includes(layout))throw Error('Unsupported OCR language or layout.');
+  if(!['eng','eng+chi_sim'].includes(language))throw Error('Unsupported OCR language.');
   signal?.throwIfAborted();
   const {default:Tesseract}=await import('./vendor/tesseract/tesseract.esm.min.js');
   signal?.throwIfAborted();
@@ -21,13 +22,34 @@ export async function recognizeOcr(canvas,{language='eng',layout='11',allowDownl
           logger:m=>{if(!settled)onProgress(`${m.status}${Number.isFinite(m.progress)?` · ${Math.round(m.progress*100)}%`:''}`);},
           errorHandler:e=>fail(Error(`OCR engine could not load or run: ${e}. Check access to jsDelivr, or try again.`))});
         if(settled||signal?.aborted)return;
-        await worker.setParameters({tessedit_pageseg_mode:layout,preserve_interword_spaces:'1'});
-        const {data}=await worker.recognize(canvas,{}, {text:true,blocks:true});
+        const result=await task(worker);
         if(settled)return;
-        const pixels=artwork.getContext('2d',{willReadFrequently:true}).getImageData(0,0,artwork.width,artwork.height);
-        const words=prepareWords(ocrWords(data,canvas.width,canvas.height),pixels);
-        settled=true;signal?.removeEventListener('abort',abort);resolve(words);
+        settled=true;signal?.removeEventListener('abort',abort);resolve(result);
       }catch(error){fail(error);}finally{void worker?.terminate();}
     })();
+  });
+}
+export async function recognizeOcr(canvas,{layout='11',artwork=canvas,...options}={}){
+  if(!['11','3','6'].includes(layout))throw Error('Unsupported OCR layout.');
+  return withWorker(options,async worker=>{
+    await worker.setParameters({tessedit_pageseg_mode:layout,preserve_interword_spaces:'1'});
+    const {data}=await worker.recognize(canvas,{}, {text:true,blocks:true});
+    const pixels=artwork.getContext('2d',{willReadFrequently:true}).getImageData(0,0,artwork.width,artwork.height);
+    return prepareWords(ocrWords(data,canvas.width,canvas.height),pixels);
+  });
+}
+export async function recognizeCrop(canvas,box,options={}){
+  // Validate before engine setup. Geometry is unchanged by a text-only re-read.
+  cropCandidates(box,[]);
+  if(canvas.width>1200||canvas.height>1200||canvas.width*canvas.height>512000)throw Error('Focused OCR crop is too large.');
+  return withWorker(options,async worker=>{
+    const observations=[];
+    for(const layout of ['11','7','13']){
+      options.signal?.throwIfAborted();
+      await worker.setParameters({tessedit_pageseg_mode:layout,preserve_interword_spaces:'1'});
+      const {data}=await worker.recognize(canvas,{}, {text:true});
+      observations.push({layout,text:data.text??'',confidence:Number(data.confidence??0)});
+    }
+    return cropCandidates(box,observations);
   });
 }

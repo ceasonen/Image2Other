@@ -1,5 +1,6 @@
 import {validateScene,MAX_NODES} from './scene.js';
 import {createEraseMask,validateMaskStrokes,validateProtectedRuns,reviewedMask} from './ocr-mask.js';
+import {cropReviewForWord} from './ocr-candidates.js';
 export const OCR_THRESHOLD=85; // A review heuristic, not a calibrated accuracy probability.
 export function ocrWords(data,width,height){
   const words=[];
@@ -91,5 +92,5 @@ export function appendOcrText(scene,words,width,height){
   if(scene.nodes.length+text.length>MAX_NODES)throw Error('Too many layers. Trace with fewer colors or simplify detail.');
   return validateScene({...scene,engine:'ocr-trace',nodes:[...scene.nodes,...text]});
 }
-export function reviewData(words,width,height,language){return {version:2,engine:'tesseract-lstm',language,width,height,trainedClassifier:false,annotationStatus:'unverified',
-  words:words.map(w=>({originalText:w.originalText,correctedText:w.text,textChangeKind:w.text===w.originalText?'unchanged':'unspecified',confidence:w.confidence,box:w.box,flatness:w.flatness,replacementBlock:w.replacementBlock??null,reviewReason:w.reviewReason??null,maskReview:reviewedMask(w)?JSON.parse(JSON.stringify(w.maskReview)):null,replace:replacements([w]).length===1}))};}
+export function reviewData(words,width,height,language,engine='tesseract-lstm'){return {version:2,engine,language,width,height,trainedClassifier:false,annotationStatus:'unverified',
+  words:words.map(w=>({originalText:w.originalText,correctedText:w.text,textChangeKind:w.text===w.originalText?'unchanged':'unspecified',confidence:w.confidence,box:w.box,flatness:w.flatness,replacementBlock:w.replacementBlock??null,reviewReason:w.reviewReason??null,cropReview:cropReviewForWord(w),maskReview:reviewedMask(w)?JSON.parse(JSON.stringify(w.maskReview)):null,replace:replacements([w]).length===1}))};}

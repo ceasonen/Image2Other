@@ -29,6 +29,14 @@ try{
   assert.equal(await evaluate(`document.querySelectorAll('#result-svg path[data-node-id]').length>0`),true);
   assert.equal(await evaluate(`document.querySelectorAll('#result-svg image').length`),0);
   assert.equal(await evaluate(`document.querySelector('#export-svg').disabled`),false);
+  const pathId=await evaluate(`document.querySelector('#result-svg path[data-node-id]').dataset.nodeId`);
+  const originalPath=await evaluate(`document.querySelector('#result-svg path[data-node-id="${pathId}"]').getAttribute('d')`);
+  await evaluate(`document.querySelector('[data-layer="${pathId}"]').click()`);
+  assert.equal(await evaluate(`!!document.querySelector('#edit-x')&&!!document.querySelector('#edit-y')`),true,'Actual traced paths need position editing');
+  await evaluate(`(()=>{const x=document.querySelector('#edit-x');x.value=Number(x.value)+12;x.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+  assert.notEqual(await evaluate(`document.querySelector('#result-svg path[data-node-id="${pathId}"]').getAttribute('d')`),originalPath);
+  await evaluate(`document.querySelector('#undo').click()`);
+  assert.equal(await evaluate(`document.querySelector('#result-svg path[data-node-id="${pathId}"]').getAttribute('d')`),originalPath,'Undo restores all original curve coordinates');
   await evaluate(`document.querySelector('#export-svg').click()`);
   await wait(`document.querySelector('#status').textContent.includes('SVG downloaded')`);
   await evaluate(`document.querySelector('#export-pptx').click()`);
@@ -52,7 +60,33 @@ try{
   await evaluate(`document.querySelector('#open-example').click()`);
   await wait(`document.querySelectorAll('#result-svg text').length>0`);
   const first=await evaluate(`document.querySelector('#result-svg text').getAttribute('data-node-id')`);
+  assert.equal(await evaluate(`document.querySelector('#result-svg text').getAttribute('font-family')`),'Times New Roman, Times, serif');
+  assert.equal(await evaluate(`!!document.querySelector('#multi-select')`),true);
+  const boxId=await evaluate(`document.querySelector('#result-svg rect[data-node-id]').dataset.nodeId`);
+  const lineId=await evaluate(`document.querySelector('#result-svg line[data-node-id]').dataset.nodeId`);
+  const targetId=await evaluate(`document.querySelectorAll('#result-svg rect[data-node-id]')[1].dataset.nodeId`);
+  await evaluate(`document.querySelector('[data-layer="${lineId}"]').click()`);
+  assert.equal(await evaluate(`!!document.querySelector('#attach-start-target')`),true,'Line endpoints need explicit attachment controls');
+  await evaluate(`document.querySelector('#attach-start-target').value='${boxId}';document.querySelector('#attach-start-target').dispatchEvent(new Event('change',{bubbles:true}));document.querySelector('#attach-end-target').value='${targetId}';document.querySelector('#attach-end-target').dispatchEvent(new Event('change',{bubbles:true}));`);
+  assert.equal(await evaluate(`document.querySelector('#edit-x').disabled`),true,'Bound lines move through their targets');
+  const lineX=await evaluate(`Number(document.querySelector('#result-svg line[data-node-id="${lineId}"]').getAttribute('x1'))`);
+  const lineX2=await evaluate(`Number(document.querySelector('#result-svg line[data-node-id="${lineId}"]').getAttribute('x2'))`);
+  const labelId=await evaluate(`[...document.querySelectorAll('#result-svg text')].find(x=>x.textContent==='Visual input').dataset.nodeId`);
+  const boxX=await evaluate(`Number(document.querySelector('#result-svg rect[data-node-id="${boxId}"]').getAttribute('x'))`);
+  const labelX=await evaluate(`Number(document.querySelector('#result-svg text[data-node-id="${labelId}"]').getAttribute('x'))`);
+  await evaluate(`document.querySelector('[data-layer="${boxId}"]').click();document.querySelector('[data-layer="${labelId}"]').dispatchEvent(new MouseEvent('click',{bubbles:true,shiftKey:true}));`);
+  assert.match(await evaluate(`document.querySelector('#inspector').textContent`),/2 layers/);
+  await evaluate(`(()=>{const x=document.querySelector('#edit-x');x.value=Number(x.value)+35;x.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+  assert.equal(await evaluate(`Number(document.querySelector('#result-svg rect[data-node-id="${boxId}"]').getAttribute('x'))`),boxX+35);
+  assert.equal(await evaluate(`Number(document.querySelector('#result-svg text[data-node-id="${labelId}"]').getAttribute('x'))`),labelX+35);
+  assert.equal(await evaluate(`Number(document.querySelector('#result-svg line[data-node-id="${lineId}"]').getAttribute('x1'))`),lineX+35,'Attached endpoint follows the module');
+  assert.equal(await evaluate(`Number(document.querySelector('#result-svg line[data-node-id="${lineId}"]').getAttribute('x2'))`),lineX2,'Other endpoint stays on its own target');
+  await evaluate(`document.querySelector('#layer-editor').scrollIntoView({block:'center'})`);
+  const geometryShot=await send('Page.captureScreenshot');await fs.writeFile('.build/preview/svg-geometry-editor.png',Buffer.from(geometryShot.data,'base64'));
+  await evaluate(`document.querySelector('#undo').click()`);
   await evaluate(`document.querySelector('[data-layer="${first}"]').click();document.querySelector('#edit-text').value='Edited label';document.querySelector('#edit-text').dispatchEvent(new Event('change',{bubbles:true}));`);
+  assert.equal(await evaluate(`document.querySelector('#edit-font-face').value`),'Times New Roman');
+  await evaluate(`document.querySelector('#edit-font-face').value='Arial';document.querySelector('#edit-font-face').dispatchEvent(new Event('change',{bubbles:true}));`);
   assert.equal(await evaluate(`document.querySelector('#result-svg').textContent.includes('Edited label')`),true);
   await evaluate(`document.querySelector('#export-json').click()`);await wait(`document.querySelector('#status').textContent.includes('Scene JSON downloaded')`);
   await evaluate(`document.querySelector('#export-pptx').click()`);await wait(`document.querySelector('#status').textContent.includes('PPTX downloaded')`);
@@ -78,6 +112,7 @@ try{
   }
   const json=JSON.parse(await fs.readFile(path.join(downloadDir,'research-diagram.json'),'utf8'));
   assert.ok(json.nodes.some(n=>n.text==='Edited label'));
+  assert.equal(json.connections[0].start.nodeId,boxId);assert.equal(json.connections[0].end.nodeId,targetId);
   // Extreme aspect ratios must retain a nonzero working canvas after downsampling.
   await evaluate(`(()=>{const transfer=new DataTransfer();transfer.items.add(new File(['<svg xmlns="http://www.w3.org/2000/svg" width="1" height="10000"><rect width="1" height="10000" fill="#6056d9"/></svg>'],'thin.svg',{type:'image/svg+xml'}));const input=document.querySelector('#file-input');input.files=transfer.files;input.dispatchEvent(new Event('change',{bubbles:true}));})()`);
   await wait(`document.querySelector('#source-meta').textContent.includes('thin.svg')`);

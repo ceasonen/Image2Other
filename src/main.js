@@ -1,17 +1,22 @@
 import './style.css';
-import {escapeXml,validateScene,sceneToSvg,outputName} from './scene.js';
+import {escapeXml,validateScene,sceneToSvg,outputName,FONT_FACES} from './scene.js';
+import {selectionBounds,moveSelection,setLineAttachment,removeLayers,nearestPort,ATTACHMENT_PORTS} from './geometry-edit.js';
 import {SCENE_PROMPT,rebuildImage,parseSceneResponse} from './ai.js';
 import {mountFileStudio} from './file-studio.js';
-import {canReplaceWord,reviewEraseMask,maskWords,appendOcrText,reviewData} from './ocr-core.js';
+import {canReplaceWord,reviewEraseMask,maskWords,appendOcrText,reviewData,prepareWords} from './ocr-core.js';
+import {paddleWords} from './paddle-import.js';
+import {readLocalPaddle} from './paddle-client.js';
 import {MAX_MASK_PIXELS} from './ocr-mask.js';
 import {mountMaskEditor} from './mask-editor.js';
+import {chooseCropCandidate} from './ocr-candidates.js';
+import {mountCropEditor} from './crop-editor.js';
 
 const icon=(name)=>{
   const paths={upload:'M12 16V4m-4 4 4-4 4 4M4 16v4h16v-4',arrow:'M5 12h14m-5-5 5 5-5 5',image:'M4 4h16v16H4z M4 16l5-5 4 4 3-3 4 4 M8 8h.01',layers:'m12 3 9 5-9 5-9-5 9-5m-9 9 9 5 9-5m-18 5 9 5 9-5',spark:'m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5L12 3',download:'M12 3v12m-4-4 4 4 4-4M4 17v4h16v-4',lock:'M6 10h12v11H6z M8 10V7a4 4 0 0 1 8 0v3',github:'M9 19c-4 1-4-2-6-2m12 5v-4c0-1-.3-2-1-2 3 0 6-2 6-6 0-2-1-3-1-4 0-1 0-2-1-3-2 0-3 1-4 1-2-1-4-1-6 0-1-1-2-1-4-1-1 1-1 2-1 3-1 1-1 2-1 4 0 4 3 6 6 6-1 0-1 1-1 2v4',settings:'M4 7h16M4 17h16M8 4v6M16 14v6',check:'m5 12 4 4L19 6',close:'m6 6 12 12M6 18 18 6',code:'m8 7-5 5 5 5m8-10 5 5-5 5m-3-12-2 14',undo:'M8 4 3 9l5 5M3 9h11a6 6 0 0 1 0 12',plus:'M12 4v16M4 12h16'};
   return `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${paths[name]??paths.image}"/></svg>`;
 };
 const $=selector=>document.querySelector(selector);
-const state={mode:'trace',file:null,source:null,scene:null,selected:null,busy:false,history:[],originalUrl:null,controller:null,worker:null,ocr:null};
+const state={mode:'trace',file:null,source:null,scene:null,selected:null,selection:[],multiSelect:false,busy:false,history:[],originalUrl:null,controller:null,worker:null,ocr:null};
 document.querySelector('#app').innerHTML=`
   <header class="header"><a class="brand" href="./"><span class="brand-mark">${icon('layers')}</span>Image<span>2</span>Other<span class="beta">BETA</span></a><nav aria-label="Main navigation"><a href="#how-it-works">How it works</a><a href="https://ceasonen.github.io/">Cheng Chen</a><a class="github-link" href="https://github.com/ceasonen/Image2Other" target="_blank" rel="noopener">${icon('github')}<span>Star on GitHub</span></a></nav></header>
   <main>
@@ -36,6 +41,9 @@ document.querySelector('#app').innerHTML=`
 // Text-first reconstruction is distinct from outline-only tracing and remote AI rebuilding.
 $('[data-mode="trace"]').insertAdjacentHTML('beforebegin','<button class="mode" data-mode="ocr" role="tab" aria-selected="false">'+icon('code')+'Text + vectors<span>OCR</span></button>');
 $('#trace-options').insertAdjacentHTML('afterend',`<div id="ocr-options" hidden><label>Language<select id="ocr-language"><option value="eng">English</option><option value="eng+chi_sim">English + 简体中文</option></select></label><label>Layout<select id="ocr-layout"><option value="11">Diagram labels</option><option value="3">Document / columns</option><option value="6">One text block</option></select></label><label class="ocr-consent"><input id="ocr-download-consent" type="checkbox"/>Allow OCR download · no image upload</label></div>`);
+$('#ocr-options').insertAdjacentHTML('afterbegin','<label>Engine<select id="ocr-engine"><option value="browser">Browser OCR</option><option value="paddle">Local PaddleOCR</option></select></label><button class="small-button" id="paddle-settings">Local Paddle settings</button>');
+$('#ocr-options').insertAdjacentHTML('beforeend','<label class="ocr-consent"><input id="paddle-source-confirmed" type="checkbox"/>JSON matches this unmodified source</label><button class="small-button" id="paddle-json">Import Paddle JSON</button><input id="paddle-json-input" type="file" accept="application/json,.json" hidden/>');
+document.body.insertAdjacentHTML('beforeend',`<dialog id="paddle-dialog"><form method="dialog"><div class="dialog-title"><div><span class="eyebrow">LOCAL PYTHON · OPTIONAL</span><h2>PaddleOCR, on your machine.</h2></div><button class="small-button">Close</button></div><p>Start scripts/paddle_service.py with existing local models. This static website does not host PaddleOCR. No models are installed automatically. Browser local-network permission may be required.</p><label>Loopback service URL<input id="paddle-endpoint" type="url" value="http://127.0.0.1:8766" autocomplete="off"/></label><label>Session token<input id="paddle-token" type="password" autocomplete="off" placeholder="Printed by your local service"/></label><label class="consent"><input id="paddle-consent" type="checkbox"/>I allow this working PNG to be sent to my local Python service when I click Recognize. No external OCR endpoint is allowed.</label><p>Use horizontal labels and disabled document preprocessing. Results still require review; confidence is not correctness.</p><p><a href="https://github.com/ceasonen/Image2Other/blob/main/docs/paddleocr.md" target="_blank" rel="noopener">Setup and limitations →</a></p><div class="dialog-actions"><button class="small-button" id="paddle-clear" type="button">Clear session</button><button class="primary compact">Save for this tab</button></div></form></dialog>`);
 $('.edit-bar').insertAdjacentHTML('beforebegin',`<section id="ocr-review" class="ocr-review" hidden aria-labelledby="ocr-review-title"><div class="ocr-review-heading"><div><h3 id="ocr-review-title">Check the words. Keep the figure.</h3><p>Selected words become editable text. Unselected regions stay as traced outlines. Scores are engine confidence, not guaranteed accuracy.</p></div><button class="small-button" id="ocr-review-export">Export review JSON</button></div><div id="ocr-words" class="ocr-words"></div><div class="ocr-review-actions"><button class="primary compact" id="ocr-build">Build with reviewed text →</button><span>Flat backgrounds only; check symbols and labels before exporting.</span></div></section>`);
 const maskEditor=mountMaskEditor({onSave:(word,strokes,protectedRuns)=>{
   const index=state.ocr?.words.indexOf(word)??-1;if(index<0||state.busy)throw Error('Source changed. Close and recognize the image again.');
@@ -44,6 +52,21 @@ const maskEditor=mountMaskEditor({onSave:(word,strokes,protectedRuns)=>{
   if(!state.ocr?.words.includes(word)||state.busy)throw Error('Source changed. Close and recognize the image again.');
   delete word.maskReview;word.selected=false;renderOcrReview();status('Saved mask removed. This label is unselected.');
 }});
+const cropEditor=mountCropEditor({onRead:async(word,canvas,options)=>{
+  if(!state.ocr?.words.includes(word)||state.busy)throw Error('Source changed. Recognize the image again.');
+  if(!$('#ocr-download-consent').checked)throw Error('Allow the OCR download before re-reading. Your image stays local.');
+  setBusy(true);
+  try{
+    const {recognizeCrop}=await import('./ocr-browser.js');
+    const result=await recognizeCrop(canvas,word.box,{...options,language:state.ocr.language,allowDownload:true});
+    if(!state.ocr?.words.includes(word))throw Error('Source changed. Recognize the image again.');
+    return result;
+  }finally{setBusy(false);}
+},onChoice:(word,report,index)=>{
+  const i=state.ocr?.words.indexOf(word)??-1;if(i<0||state.busy)throw Error('Source changed. Recognize the image again.');
+  state.ocr.words[i]=chooseCropCandidate(word,report,index);renderOcrReview();status('Crop text draft chosen. Check it, then explicitly select Replace if appropriate.');
+}});
+$('#toggle-layers').insertAdjacentHTML('beforebegin','<button class="small-button" id="multi-select" aria-pressed="false" disabled>Select multiple</button>');
 
 const sampleScene={width:800,height:460,background:'#ffffff',engine:'editable-example',nodes:[
   {type:'text',x:52,y:35,width:700,height:40,text:'Complementary information, one model',fontSize:25,bold:true,fill:'#252b40'},
@@ -60,31 +83,48 @@ const sampleScene={width:800,height:460,background:'#ffffff',engine:'editable-ex
 function status(message,error=false){$('#status').textContent=message;$('#status-indicator').classList.toggle('error',error);}
 function saveHistory(){if(state.scene){state.history.push(JSON.stringify(state.scene));if(state.history.length>30)state.history.shift();}$('#undo').disabled=!state.history.length;}
 function setBusy(value){state.busy=value;$('#convert').disabled=value||!state.source;$('#convert').classList.toggle('loading',value);$('#cancel').hidden=!value;$('#replace-file').disabled=value;$('#try-sample').disabled=value;
+  $('#paddle-json').disabled=value||!state.source;$('#paddle-settings').disabled=value;
   document.querySelectorAll('#ocr-options input,#ocr-options select,#ocr-review input,#ocr-build,#ocr-review-export,[data-mode]').forEach(el=>el.disabled=value);
   for(const el of document.querySelectorAll('[data-ocr-select]'))el.disabled=value||!canReplaceWord(state.ocr?.words.find(w=>w.id===el.dataset.ocrSelect));
   for(const el of document.querySelectorAll('[data-ocr-mask]')){const word=state.ocr?.words.find(w=>w.id===el.dataset.ocrMask);el.disabled=value||!word?.safeBackground||word.box.width*word.box.height>MAX_MASK_PIXELS;}
-  for(const id of ['export-svg','export-pptx','export-json','add-text','toggle-layers'])$('#'+id).disabled=value||!state.scene;
+  for(const el of document.querySelectorAll('[data-ocr-reread]')){const word=state.ocr?.words.find(w=>w.id===el.dataset.ocrReread);el.disabled=value||!word||word.box.width*word.box.height>MAX_MASK_PIXELS;}
+  for(const id of ['export-svg','export-pptx','export-json','add-text','toggle-layers','multi-select'])$('#'+id).disabled=value||!state.scene;
 }
 function download(blob,name){const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);}
-function showScene(scene){state.scene=validateScene(scene);state.selected=null;renderScene();}
+function showScene(scene){state.scene=validateScene(scene);state.selected=null;state.selection=[];renderScene();}
 function renderScene(){
   if(!state.scene)return;
   $('#result-empty').hidden=true;$('#raster-preview').hidden=true;$('#result-svg').hidden=false;
-  $('#result-svg').innerHTML=sceneToSvg(state.scene,{selected:state.selected});
+  $('#result-svg').innerHTML=sceneToSvg(state.scene,{selected:state.selection});
   $('#result-type').textContent=state.scene.engine==='local-trace'?'VECTOR PATHS':'EDITABLE SCENE';
   $('#result-meta').textContent=`${state.scene.width} × ${state.scene.height} · ${state.scene.nodes.length} editable layers`;
   $('#layer-count').textContent=state.scene.nodes.length;
-  for(const id of ['export-svg','export-pptx','export-json','add-text','toggle-layers'])$('#'+id).disabled=false;
+  for(const id of ['export-svg','export-pptx','export-json','add-text','toggle-layers','multi-select'])$('#'+id).disabled=false;
   $('#undo').disabled=!state.history.length;
   renderLayers();
 }
 function renderLayers(){
-  $('#layer-list').innerHTML=state.scene.nodes.map(n=>`<button class="layer-item${n.id===state.selected?' active':''}" data-layer="${n.id}"><span class="layer-swatch" style="background:${n.fill==='none'?n.stroke:n.fill}"></span><span>${escapeXml(n.name)}</span><small>${n.type}</small></button>`).join('');
+  $('#layer-list').innerHTML=state.scene.nodes.map(n=>`<button class="layer-item${state.selection.includes(n.id)?' active':''}" aria-pressed="${state.selection.includes(n.id)}" data-layer="${n.id}"><span class="layer-swatch" style="background:${n.fill==='none'?n.stroke:n.fill}"></span><span>${escapeXml(n.name)}</span><small>${n.type}</small></button>`).join('');
   const node=state.scene.nodes.find(n=>n.id===state.selected);
   if(!node){$('#inspector').innerHTML='<p>Select a layer to adjust its color, text or position.</p>';return;}
-  $('#inspector').innerHTML=`<div class="inspector-heading"><strong>${escapeXml(node.name)}</strong><button class="small-button" id="delete-layer">Remove</button></div><div class="inspector-fields"><label>Fill<input id="edit-fill" type="color" value="${node.fill==='none'?'#ffffff':node.fill}"/></label><label>Opacity<input id="edit-opacity" type="range" min="0" max="100" value="${node.opacity*100}"/></label>${node.type==='path'?'':`<label>X<input id="edit-x" type="number" value="${node.x}"/></label><label>Y<input id="edit-y" type="number" value="${node.y}"/></label>`}${node.type==='text'?`<label class="text-field">Text<textarea id="edit-text" rows="2">${escapeXml(node.text)}</textarea></label><label>Font size<input id="edit-font" type="number" min="1" max="500" value="${node.fontSize}"/></label>`:''}</div>`;
+  const bounds=selectionBounds(state.scene,state.selection),multiple=state.selection.length>1;
+  const bound=state.scene.connections?.some(c=>state.selection.includes(c.lineId));
+  const position=`<label>X<input id="edit-x" type="number" step="any" value="${bounds.x}" ${bound?'disabled':''}/></label><label>Y<input id="edit-y" type="number" step="any" value="${bounds.y}" ${bound?'disabled':''}/></label>`;
+  $('#inspector').innerHTML=`<div class="inspector-heading"><strong>${multiple?state.selection.length+' layers · move together':escapeXml(node.name)}</strong><button class="small-button" id="delete-layer">Remove${multiple?' selection':''}</button></div><div class="inspector-fields">${position}${multiple?'':`<label>Fill<input id="edit-fill" type="color" value="${node.fill==='none'?'#ffffff':node.fill}"/></label><label>Opacity<input id="edit-opacity" type="range" min="0" max="100" value="${node.opacity*100}"/></label>${node.type==='text'?`<label class="text-field">Text<textarea id="edit-text" rows="2">${escapeXml(node.text)}</textarea></label><label>Font size<input id="edit-font" type="number" min="1" max="500" value="${node.fontSize}"/></label><label>Font family<select id="edit-font-face">${FONT_FACES.map(face=>`<option ${face===node.fontFace?'selected':''}>${face}</option>`).join('')}</select></label>`:''}${node.type==='line'?attachmentFields(node):''}`}</div><p class="geometry-help">${bound?'Move the attached artwork, or set both endpoints to Free before moving this line.':multiple?'Selected artwork and labels keep their relative positions; explicitly attached line ends follow their targets. Free connectors still need checking.':'Shift-click layers, or use Select multiple, to move artwork and labels together. Line attachments are set manually.'}</p>`;
 }
-function selectLayer(id){state.selected=id;$('#layer-editor').hidden=false;renderScene();}
+function attachmentFields(node){
+  const connection=state.scene.connections?.find(c=>c.lineId===node.id);
+  const targets=state.scene.nodes.filter(n=>['rect','ellipse','path'].includes(n.type));
+  return ['start','end'].map(end=>{
+    const anchor=connection?.[end],port=anchor?ATTACHMENT_PORTS.findIndex(p=>p.u===anchor.u&&p.v===anchor.v):-1;
+    return `<label>${end==='start'?'Start':'End'} target<select id="attach-${end}-target"><option value="">Free</option>${targets.map(n=>`<option value="${n.id}" ${n.id===anchor?.nodeId?'selected':''}>${escapeXml(n.name)}</option>`).join('')}</select></label><label>${end==='start'?'Start':'End'} port<select id="attach-${end}-port" ${anchor?'':'disabled'}>${port<0?'<option value="custom">Custom / unset</option>':''}${ATTACHMENT_PORTS.map((p,i)=>`<option value="${i}" ${i===port?'selected':''}>${p.name}</option>`).join('')}</select></label>`;
+  }).join('');
+}
+function selectLayer(id,additive=false){
+  if(additive||state.multiSelect)state.selection=state.selection.includes(id)?state.selection.filter(x=>x!==id):[...state.selection,id];
+  else state.selection=[id];
+  state.selected=state.selection.at(-1)??null;$('#layer-editor').hidden=false;renderScene();
+}
 async function svgImage(svg){const blob=new Blob([svg],{type:'image/svg+xml'}),url=URL.createObjectURL(blob);try{const image=new Image();image.src=url;await image.decode();return image;}finally{URL.revokeObjectURL(url);}}
 async function loadSample(){
   if(state.busy)return;
@@ -105,10 +145,11 @@ async function loadFile(file){
     url=URL.createObjectURL(file);const image=new Image();image.src=url;await image.decode();
     if(image.naturalWidth*image.naturalHeight>24_000_000)throw new Error('This image exceeds 24 megapixels. Resize it first.');
     if(state.originalUrl)URL.revokeObjectURL(state.originalUrl);state.originalUrl=url;state.source=image;state.file=file;
-    state.scene=null;state.history=[];state.selected=null;state.ocr=null;$('#ocr-review').hidden=true;
+    state.scene=null;state.history=[];state.selected=null;state.selection=[];state.ocr=null;$('#ocr-review').hidden=true;
+    $('#paddle-source-confirmed').checked=false;
     $('#source-image').src=url;$('#source-image').hidden=false;$('#source-empty').hidden=true;
     $('#result-svg').hidden=true;$('#result-empty').hidden=false;$('#raster-preview').hidden=true;$('#layer-editor').hidden=true;
-    for(const id of ['export-svg','export-pptx','export-json','add-text','toggle-layers','undo'])$('#'+id).disabled=true;
+    for(const id of ['export-svg','export-pptx','export-json','add-text','toggle-layers','undo','multi-select'])$('#'+id).disabled=true;
     $('#source-meta').textContent=`${file.name} · ${image.naturalWidth} × ${image.naturalHeight} · ${(file.size/1024).toFixed(1)} KB`;
     $('#layer-count').textContent='0';$('#result-meta').textContent='Choose a conversion mode to begin.';
     $('#export-raster').disabled=false;setBusy(false);status('Image ready. Choose a mode and convert.');
@@ -147,11 +188,12 @@ function renderOcrReview(){
   $('#ocr-words').innerHTML=state.ocr.words.map(w=>{
     const c=document.createElement('canvas');c.width=w.box.width+8;c.height=w.box.height+8;
     c.getContext('2d').drawImage(state.ocr.canvas,w.box.x-4,w.box.y-4,c.width,c.height,0,0,c.width,c.height);
-    return `<div class="ocr-word${w.confidence<85||w.reviewReason?' uncertain':''}"><label><input type="checkbox" data-ocr-select="${w.id}" ${w.selected?'checked':''} ${canReplaceWord(w)?'':'disabled'}/>Replace</label><img src="${c.toDataURL()}" alt="Source crop for ${escapeXml(w.originalText)}"/><input data-ocr-text="${w.id}" value="${escapeXml(w.text)}" maxlength="500" aria-label="Correct recognized word ${escapeXml(w.originalText)}"/><div class="ocr-mask-actions"><small>${w.confidence.toFixed(0)} · ${w.maskReview?'mask reviewed':w.replacementBlock==='crossing-stroke'?'crossing stroke · kept':!w.safeBackground?'mixed background · kept':w.reviewReason?'identifier · check':w.confidence<85?'check carefully':'review label'}</small><button class="small-button" data-ocr-mask="${w.id}" ${w.safeBackground&&w.box.width*w.box.height<=MAX_MASK_PIXELS?'':'disabled'}>Review mask</button></div></div>`;
+    return `<div class="ocr-word${w.confidence<85||w.reviewReason||w.cropReview?' uncertain':''}"><label><input type="checkbox" data-ocr-select="${w.id}" ${w.selected?'checked':''} ${canReplaceWord(w)?'':'disabled'}/>Replace</label><img src="${c.toDataURL()}" alt="Source crop for ${escapeXml(w.originalText)}"/><input data-ocr-text="${w.id}" value="${escapeXml(w.text)}" maxlength="500" aria-label="Correct recognized word ${escapeXml(w.originalText)}"/><div class="ocr-mask-actions"><small>${w.confidence.toFixed(0)} · ${w.cropReview?'crop draft · check'+(w.maskReview?' · mask reviewed':''):w.maskReview?'mask reviewed':w.replacementBlock==='crossing-stroke'?'crossing stroke · kept':!w.safeBackground?'mixed background · kept':w.reviewReason?'identifier · check':w.confidence<85?'check carefully':'review label'}</small><div class="ocr-label-buttons"><button class="small-button" data-ocr-reread="${w.id}" ${w.box.width*w.box.height<=MAX_MASK_PIXELS?'':'disabled'}>Re-read label</button><button class="small-button" data-ocr-mask="${w.id}" ${w.safeBackground&&w.box.width*w.box.height<=MAX_MASK_PIXELS?'':'disabled'}>Review mask</button></div></div></div>`;
   }).join('')||'<p>No text found. Try another layout, a sharper image, or outline-only tracing.</p>';
   $('#ocr-build').disabled=!state.ocr.words.length;
 }
 async function scanOcr(){
+  if($('#ocr-engine').value==='paddle'){await scanPaddle();return;}
   if(!$('#ocr-download-consent').checked){status('Please allow the OCR download first. Your image is not uploaded.',true);return;}
   setBusy(true);state.controller=new AbortController();const timer=setTimeout(()=>state.controller?.abort(),180000);
   try{
@@ -166,6 +208,28 @@ async function scanOcr(){
     const words=await recognizeOcr(canvas,{artwork,language,layout:$('#ocr-layout').value,allowDownload:true,signal:state.controller.signal,onProgress:m=>status(`OCR: ${m}`)});
     state.ocr={canvas:artwork,words,language};renderOcrReview();status(`${words.length} words found. Check the crops and corrections, then build with reviewed text.`);
   }catch(error){status(error.name==='AbortError'?'OCR cancelled or timed out.':error.message,true);}finally{clearTimeout(timer);state.controller=null;setBusy(false);$('#ocr-build').disabled=!state.ocr?.words.length;}
+}
+function paddleCanvas(){
+  const canvas=document.createElement('canvas'),w=state.source.naturalWidth,h=state.source.naturalHeight,factor=Math.min(1,2400/Math.max(w,h),Math.sqrt(4e6/(w*h)));
+  canvas.width=Math.max(1,Math.round(w*factor));canvas.height=Math.max(1,Math.round(h*factor));canvas.getContext('2d',{willReadFrequently:true}).drawImage(state.source,0,0,canvas.width,canvas.height);return canvas;
+}
+function applyPaddleResult(result,canvas,sourceWidth,sourceHeight,engine){
+  const words=paddleWords(result,canvas.width,canvas.height,{width:sourceWidth,height:sourceHeight,confirmed:true});
+  const pixels=canvas.getContext('2d',{willReadFrequently:true}).getImageData(0,0,canvas.width,canvas.height);
+  state.ocr={canvas,words:prepareWords(words,pixels).map(w=>({...w,selected:false})),language:$('#ocr-language').value,engine};
+  renderOcrReview();status(`${words.length} PaddleOCR labels loaded. Check source crops and explicitly select replacements before building SVG.`);
+}
+async function scanPaddle(){
+  if(!$('#paddle-consent').checked||!$('#paddle-token').value){$('#paddle-dialog').showModal();status('Configure and authorize your local PaddleOCR service first.',true);return;}
+  setBusy(true);state.controller=new AbortController();const timer=setTimeout(()=>state.controller?.abort(),180000);
+  try{
+    const canvas=paddleCanvas(),white=document.createElement('canvas');white.width=canvas.width;white.height=canvas.height;const ctx=white.getContext('2d');ctx.fillStyle='white';ctx.fillRect(0,0,white.width,white.height);ctx.drawImage(canvas,0,0);
+    status('Recognizing with your local PaddleOCR service…');
+    const result=await readLocalPaddle({endpoint:$('#paddle-endpoint').value,token:$('#paddle-token').value,image:white.toDataURL('image/png'),consent:true,signal:state.controller.signal});
+    if(result.width!==canvas.width||result.height!==canvas.height)throw Error('Local result dimensions do not match the working image.');
+    applyPaddleResult(result.res,canvas,canvas.width,canvas.height,'paddleocr-local');
+  }catch(error){status(error.name==='AbortError'?'Local request stopped; Python inference may continue.':error instanceof TypeError?'Cannot reach local PaddleOCR. Start the service and allow browser local-network access, or use JSON import.':error.message,true);}
+  finally{clearTimeout(timer);state.controller=null;setBusy(false);$('#ocr-build').disabled=!state.ocr?.words.length;}
 }
 async function buildOcr(){
   if(state.busy||!state.ocr)return;setBusy(true);status('Removing reviewed glyphs, then tracing the artwork…');
@@ -213,31 +277,57 @@ $('#convert').onclick=convert;$('#cancel').onclick=()=>{state.controller?.abort(
 $('#ocr-build').onclick=buildOcr;
 $('#ocr-words').oninput=e=>{const w=state.ocr?.words.find(w=>w.id===e.target.dataset.ocrText);if(w)w.text=e.target.value;};
 $('#ocr-words').onchange=e=>{const w=state.ocr?.words.find(w=>w.id===e.target.dataset.ocrSelect);if(w&&canReplaceWord(w))w.selected=e.target.checked;};
-$('#ocr-words').onclick=e=>{const button=e.target.closest('[data-ocr-mask]'),word=state.ocr?.words.find(w=>w.id===button?.dataset.ocrMask);if(word&&!state.busy&&!button.disabled)maskEditor.open(word,state.ocr.canvas);};
-$('#ocr-review-export').onclick=()=>{if(!state.ocr)return;download(new Blob([JSON.stringify(reviewData(state.ocr.words,state.ocr.canvas.width,state.ocr.canvas.height,state.ocr.language),null,2)],{type:'application/json'}),outputName(state.file.name,'ocr-review.json'));};
+$('#ocr-words').onclick=e=>{
+  const button=e.target.closest('[data-ocr-mask],[data-ocr-reread]'),id=button?.dataset.ocrMask??button?.dataset.ocrReread;
+  const word=state.ocr?.words.find(w=>w.id===id);if(!word||state.busy||button.disabled)return;
+  try{(button.dataset.ocrMask?maskEditor:cropEditor).open(word,state.ocr.canvas);}catch(error){status(error.message,true);}
+};
+$('#ocr-review-export').onclick=()=>{if(!state.ocr)return;download(new Blob([JSON.stringify(reviewData(state.ocr.words,state.ocr.canvas.width,state.ocr.canvas.height,state.ocr.language,state.ocr.engine),null,2)],{type:'application/json'}),outputName(state.file.name,'ocr-review.json'));};
+$('#paddle-settings').onclick=()=>$('#paddle-dialog').showModal();
+$('#paddle-clear').onclick=()=>{$('#paddle-token').value='';$('#paddle-consent').checked=false;};
+$('#paddle-json').onclick=()=>{if(!state.source||state.busy)return;if(!$('#paddle-source-confirmed').checked){status('Confirm that the JSON belongs to this same unmodified source image.',true);return;}$('#paddle-json-input').click();};
+$('#paddle-json-input').onchange=async e=>{
+  const file=e.target.files?.[0];e.target.value='';if(!file||state.busy)return;setBusy(true);
+  try{if(!state.source||!$('#paddle-source-confirmed').checked)throw Error('Confirm the JSON source image first.');if(file.size>4e6)throw Error('PaddleOCR JSON must be smaller than 4 MB.');const result=JSON.parse(await file.text()),canvas=paddleCanvas();applyPaddleResult(result,canvas,state.source.naturalWidth,state.source.naturalHeight,'paddleocr-import');}
+  catch(error){status(error.message,true);}finally{setBusy(false);$('#ocr-build').disabled=!state.ocr?.words.length;}
+};
 document.querySelectorAll('[data-mode]').forEach(button=>button.onclick=()=>setMode(button.dataset.mode));
 $('#settings').onclick=()=>$('#ai-dialog').showModal();$('#clear-key').onclick=()=>{$('#api-key').value='';$('#api-endpoint').value='';$('#api-model').value='';$('#ai-consent').checked=false;};
 $('#copy-prompt').onclick=async()=>{try{await navigator.clipboard.writeText(SCENE_PROMPT);status('Reconstruction prompt copied. Attach your image in your AI chat, then import its JSON.');}catch{status('Clipboard access unavailable. The prompt is in docs/ai-rebuild.md.',true);}};
 $('#import-scene').onclick=()=>$('#json-input').click();
 $('#toggle-layers').onclick=()=>{$('#layer-editor').hidden=!$('#layer-editor').hidden;};
-$('#layer-list').onclick=e=>{const button=e.target.closest('[data-layer]');if(button)selectLayer(button.dataset.layer);};
-$('#result-svg').onclick=e=>{const shape=e.target.closest('[data-node-id]');if(shape)selectLayer(shape.dataset.nodeId);};
+$('#multi-select').onclick=()=>{state.multiSelect=!state.multiSelect;$('#multi-select').setAttribute('aria-pressed',state.multiSelect);status(state.multiSelect?'Click layers to add/remove selection. X/Y moves the selected layers together.':'Single-layer selection. Shift-click still adds layers.');};
+$('#layer-list').onclick=e=>{const button=e.target.closest('[data-layer]');if(button)selectLayer(button.dataset.layer,e.shiftKey);};
+$('#result-svg').onclick=e=>{const shape=e.target.closest('[data-node-id]');if(shape)selectLayer(shape.dataset.nodeId,e.shiftKey);};
 $('#inspector').onchange=e=>{
   const node=state.scene.nodes.find(n=>n.id===state.selected);if(!node)return;
-  const fields={'edit-fill':'fill','edit-x':'x','edit-y':'y','edit-font':'fontSize','edit-text':'text','edit-opacity':'opacity'};
+  const attachment=e.target.id.match(/^attach-(start|end)-(target|port)$/);
+  if(attachment){
+    const [,end,field]=attachment;
+    try{
+      let anchor=null;
+      if(field==='target'&&e.target.value){const target=state.scene.nodes.find(n=>n.id===e.target.value),p=nearestPort(target,node[end==='start'?'x':'x2'],node[end==='start'?'y':'y2']);anchor={nodeId:target.id,u:p.u,v:p.v};}
+      if(field==='port'){const current=state.scene.connections?.find(c=>c.lineId===node.id)?.[end],p=ATTACHMENT_PORTS[Number(e.target.value)];if(!current||!p)throw Error('Choose a target and valid port.');anchor={nodeId:current.nodeId,u:p.u,v:p.v};}
+      const next=setLineAttachment(state.scene,node.id,end,anchor);saveHistory();state.scene=next;renderScene();status('Manual endpoint attachment updated. Save Scene JSON to retain editing constraints.');
+    }catch(error){renderScene();status(error.message,true);}return;
+  }
+  if(['edit-x','edit-y'].includes(e.target.id)){
+    try{const next=moveSelection(state.scene,state.selection,{[e.target.id==='edit-x'?'x':'y']:Number(e.target.value)});saveHistory();state.scene=next;renderScene();status('Vector geometry moved. Attached line ends followed their targets; unrelated layers are unchanged.');}catch(error){renderScene();status(error.message,true);}return;
+  }
+  const fields={'edit-fill':'fill','edit-font':'fontSize','edit-text':'text','edit-opacity':'opacity','edit-font-face':'fontFace'};
   const field=fields[e.target.id];if(!field)return;
-  saveHistory();const old=node[field];node[field]=['fill','text'].includes(field)?e.target.value:Number(e.target.value)/(field==='opacity'?100:1);
+  saveHistory();const old=node[field];node[field]=['fill','text','fontFace'].includes(field)?e.target.value:Number(e.target.value)/(field==='opacity'?100:1);
   try{validateScene(state.scene);renderScene();status('Layer updated.');}catch(error){node[field]=old;state.history.pop();renderScene();status(error.message,true);}
 };
-$('#inspector').onclick=e=>{if(e.target.closest('#delete-layer')){saveHistory();state.scene.nodes=state.scene.nodes.filter(n=>n.id!==state.selected);state.scene=validateScene(state.scene);state.selected=null;renderScene();status('Layer removed.');}};
-$('#add-text').onclick=()=>{saveHistory();state.scene.nodes.push({type:'text',name:'New label',x:30,y:30,width:state.scene.width/2,height:45,text:'Your label',fontSize:24,fill:'#222222'});state.scene=validateScene(state.scene);state.selected=state.scene.nodes.at(-1).id;$('#layer-editor').hidden=false;renderScene();};
+$('#inspector').onclick=e=>{if(e.target.closest('#delete-layer')){const next=removeLayers(state.scene,state.selection);saveHistory();state.scene=next;state.selected=null;state.selection=[];renderScene();status('Selected layers removed; affected endpoints detached. Undo is available.');}};
+$('#add-text').onclick=()=>{saveHistory();state.scene.nodes.push({type:'text',name:'New label',x:30,y:30,width:state.scene.width/2,height:45,text:'Your label',fontSize:24,fill:'#222222'});state.scene=validateScene(state.scene);state.selected=state.scene.nodes.at(-1).id;state.selection=[state.selected];$('#layer-editor').hidden=false;renderScene();};
 $('#undo').onclick=()=>{if(state.history.length){showScene(JSON.parse(state.history.pop()));status('Previous edit restored.');}};
 $('#export-svg').onclick=()=>{download(new Blob([sceneToSvg(state.scene)],{type:'image/svg+xml'}),outputName(state.file?.name??'editable-example','svg'));status('SVG downloaded with editable vector elements.');};
 $('#export-json').onclick=()=>{download(new Blob([JSON.stringify(state.scene,null,2)],{type:'application/json'}),outputName(state.file?.name??'editable-example','json'));status('Scene JSON downloaded. Reimport it to continue editing.');};
 $('#export-pptx').onclick=async()=>{const button=$('#export-pptx');button.disabled=true;try{status('Building native PowerPoint objects…');const {exportPptx}=await import('./export.js');download(await exportPptx(state.scene),outputName(state.file?.name??'editable-example','pptx'));status('PPTX downloaded with native editable objects.');}catch(error){status(error.message,true);}finally{button.disabled=false;}};
 $('#export-raster').onclick=async()=>{try{const canvas=rasterCanvas(),format=$('#raster-format').value,mime=`image/${format}`,blob=await new Promise(resolve=>canvas.toBlob(resolve,mime,Number($('#quality').value)/100));if(!blob||blob.type!==mime)throw new Error(`Your browser cannot encode ${format.toUpperCase()}. Try PNG.`);download(blob,outputName(state.file.name,format==='jpeg'?'jpg':format));status(`${format.toUpperCase()} downloaded · ${canvas.width} × ${canvas.height}`);}catch(error){status(error.message,true);}};
 $('#raster-format').onchange=showRasterPreview;
-window.addEventListener('beforeunload',()=>{if(state.originalUrl)URL.revokeObjectURL(state.originalUrl);state.worker?.terminate();state.controller?.abort();$('#api-key').value='';});
+window.addEventListener('beforeunload',()=>{if(state.originalUrl)URL.revokeObjectURL(state.originalUrl);state.worker?.terminate();state.controller?.abort();$('#api-key').value='';$('#paddle-token').value='';});
 const fileSection=document.createElement('section');fileSection.id='files';fileSection.className='studio file-studio';
 $('#how-it-works').before(fileSection);
 const filesLink=document.createElement('a');filesLink.href='#files';filesLink.textContent='PDF & slides';$('.header nav').prepend(filesLink);

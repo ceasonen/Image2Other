@@ -1,4 +1,5 @@
 export const MAX_NODES = 2000;
+export const FONT_FACES=['Times New Roman','Arial','Calibri','Georgia'];
 export const escapeXml = value => String(value).replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[char]));
 const number = (value, label, min = -20000, max = 20000) => {
   if (typeof value !== 'number' || !Number.isFinite(value) || value < min || value > max) throw new Error(`${label} must be finite and within ${min}–${max}`);
@@ -12,9 +13,15 @@ const color = (value, fallback) => {
 export function validateScene(input) {
   if (!input || !Array.isArray(input.nodes) || input.nodes.length > MAX_NODES) throw new Error(`Scene needs at most ${MAX_NODES} nodes`);
   const width = number(input.width, 'width', 1, 16000), height = number(input.height, 'height', 1, 16000);
+  const reserved=new Set();
+  for(const node of input.nodes)if(node?.id!==undefined){
+    if(typeof node.id!=='string'||! /^[a-zA-Z0-9_-]{1,80}$/.test(node.id)||reserved.has(node.id))throw Error('Invalid or duplicate layer ID.');
+    reserved.add(node.id);
+  }
   const nodes = input.nodes.map((node, i) => {
     if (!node || !['rect','ellipse','line','text','path'].includes(node.type)) throw new Error('Unsupported scene node');
-    const result = { id:`node-${i}`, name:String(node.name ?? node.id ?? `${node.type} ${i+1}`).slice(0,100), type:node.type,
+    let id=node.id;if(id===undefined){let index=i;while(reserved.has(`node-${index}`))index++;id=`node-${index}`;reserved.add(id);}
+    const result = { id, name:String(node.name ?? node.id ?? `${node.type} ${i+1}`).slice(0,100), type:node.type,
       fill:color(node.fill, node.type === 'line' ? 'none' : '#111111'), stroke:color(node.stroke,'none'),
       strokeWidth:number(node.strokeWidth ?? 0, 'strokeWidth',0,100), opacity:number(node.opacity ?? 1,'opacity',0,1) };
     if (node.type === 'path') {
@@ -31,29 +38,56 @@ export function validateScene(input) {
           if (typeof node.text !== 'string' || node.text.length > 5000) throw new Error('Invalid text');
           result.text=node.text; result.fontSize=number(node.fontSize ?? 16,'fontSize',1,500);
           result.bold=Boolean(node.bold); result.align=['left','center','right'].includes(node.align) ? node.align : 'left';
+          result.fontFace=node.fontFace??'Times New Roman';
+          if(!FONT_FACES.includes(result.fontFace))throw Error('Unsupported font family.');
           if(node.fitWidth)result.fitWidth=true;
         }
       }
     }
     return result;
   });
-  return {width,height,background:color(input.background,'none'),nodes,engine:String(input.engine ?? 'scene').slice(0,50)};
+  const connections=[],byId=new Map(nodes.map(n=>[n.id,n])),bound=new Set();
+  if(input.connections!==undefined){
+    if(!Array.isArray(input.connections)||input.connections.length>MAX_NODES)throw Error('Invalid line attachments.');
+    for(const connection of input.connections){
+      const line=byId.get(connection?.lineId);
+      if(line?.type!=='line'||bound.has(line.id))throw Error('Attachment needs a unique line.');
+      const result={lineId:line.id};
+      for(const end of ['start','end'])if(connection[end]!==undefined){
+        const anchor=connection[end],target=byId.get(anchor?.nodeId);
+        if(!target||!['rect','ellipse','path'].includes(target.type))throw Error('Attachment target must be artwork.');
+        const u=number(anchor.u,'attachment u',0,1),v=number(anchor.v,'attachment v',0,1),b=nodeBounds(target);
+        result[end]={nodeId:target.id,u,v};
+        line[end==='start'?'x':'x2']=number(b.x+u*b.width,'attached X');
+        line[end==='start'?'y':'y2']=number(b.y+v*b.height,'attached Y');
+      }
+      if(!result.start&&!result.end)throw Error('Attachment needs an endpoint.');
+      bound.add(line.id);connections.push(result);
+    }
+  }
+  return {width,height,background:color(input.background,'none'),nodes,engine:String(input.engine ?? 'scene').slice(0,50),...(connections.length?{connections}:{})};
 }
 export function sceneToSvg(input, { selected = null } = {}) {
   const scene=validateScene(input);
+  const selection=new Set(Array.isArray(selected)?selected:selected?[selected]:[]);
   const elements=scene.nodes.map(node => {
     const style=`data-node-id="${node.id}" fill="${node.fill}" stroke="${node.stroke}" stroke-width="${node.strokeWidth}" opacity="${node.opacity}"`;
     let shape='';
     if(node.type==='rect') shape=`<rect ${style} x="${node.x}" y="${node.y}" width="${node.width}" height="${node.height}" rx="${node.radius}"/>`;
     if(node.type==='ellipse') shape=`<ellipse ${style} cx="${node.x+node.width/2}" cy="${node.y+node.height/2}" rx="${node.width/2}" ry="${node.height/2}"/>`;
-    if(node.type==='line') shape=`<line ${style} x1="${node.x}" y1="${node.y}" x2="${node.x2}" y2="${node.y2}"${node.arrow?' marker-end="url(#arrow)"':''}/>`;
+    if(node.type==='line') {
+      const connection=scene.connections?.find(c=>c.lineId===node.id);
+      const metadata=['start','end'].map(end=>connection?.[end]?` data-${end}-node="${connection[end].nodeId}" data-${end}-u="${connection[end].u}" data-${end}-v="${connection[end].v}"`:'').join('');
+      shape=`<line ${style}${metadata} x1="${node.x}" y1="${node.y}" x2="${node.x2}" y2="${node.y2}"${node.arrow?' marker-end="url(#arrow)"':''}/>`;
+    }
     if(node.type==='path') shape=`<path ${style} d="${escapeXml(node.d)}"/>`;
     if(node.type==='text') {
       const offset=node.align==='center'?node.width/2:node.align==='right'?node.width:0;
       const anchor=node.align==='center'?'middle':node.align==='right'?'end':'start';
-      shape=`<text ${style} x="${node.x+offset}" y="${node.y}" font-family="Arial, sans-serif" font-size="${node.fontSize}" font-weight="${node.bold?700:400}" text-anchor="${anchor}" dominant-baseline="hanging">${node.text.split('\n').map((line,i)=>`<tspan x="${node.x+offset}" dy="${i?node.fontSize*1.2:0}"${node.fitWidth?` textLength="${node.width}" lengthAdjust="spacingAndGlyphs"`:''}>${escapeXml(line)}</tspan>`).join('')}</text>`;
+      const family=node.fontFace==='Times New Roman'?'Times New Roman, Times, serif':node.fontFace+', '+(node.fontFace==='Georgia'?'serif':'sans-serif');
+      shape=`<text ${style} x="${node.x+offset}" y="${node.y}" font-family="${family}" font-size="${node.fontSize}" font-weight="${node.bold?700:400}" text-anchor="${anchor}" dominant-baseline="hanging">${node.text.split('\n').map((line,i)=>`<tspan x="${node.x+offset}" dy="${i?node.fontSize*1.2:0}"${node.fitWidth?` textLength="${node.width}" lengthAdjust="spacingAndGlyphs"`:''}>${escapeXml(line)}</tspan>`).join('')}</text>`;
     }
-    return `<g${selected===node.id?' class="selected-layer"':''}><title>${escapeXml(node.name)}</title>${shape}</g>`;
+    return `<g${selection.has(node.id)?' class="selected-layer"':''}><title>${escapeXml(node.name)}</title>${shape}</g>`;
   });
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${scene.width}" height="${scene.height}" viewBox="0 0 ${scene.width} ${scene.height}"><defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="strokeWidth"><path d="M 0 0 L 8 4 L 0 8 Z" fill="context-stroke"/></marker></defs>${scene.background==='none'?'':`<rect width="100%" height="100%" fill="${scene.background}"/>`}${elements.join('')}</svg>`;
 }
@@ -72,6 +106,33 @@ export function pathToPoints(d, scale) {
   }
   if(!points.length || !points[0].moveTo) throw new Error('Path must start with M');
   return points;
+}
+const roots=(a,b,c)=>{
+  if(Math.abs(a)<1e-12)return Math.abs(b)<1e-12?[]:[-c/b];
+  const d=b*b-4*a*c;if(d<0)return [];return [(-b+Math.sqrt(d))/(2*a),(-b-Math.sqrt(d))/(2*a)];
+};
+export function nodeBounds(node){
+  if(node.type==='line')return{x:Math.min(node.x,node.x2),y:Math.min(node.y,node.y2),width:Math.abs(node.x2-node.x),height:Math.abs(node.y2-node.y)};
+  if(node.type!=='path')return{x:node.x,y:node.y,width:node.width,height:node.height};
+  let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity,current,start;
+  const include=p=>{minX=Math.min(minX,p.x);minY=Math.min(minY,p.y);maxX=Math.max(maxX,p.x);maxY=Math.max(maxY,p.y);};
+  for(const p of pathToPoints(node.d,1)){
+    if(p.close){current=start;continue;}
+    if(p.moveTo){current=start=p;include(p);continue;}
+    include(p);
+    if(p.curve){
+      const c=p.curve,cubic=c.type==='cubic';
+      const extrema=['x','y'].flatMap(axis=>{
+        const a=current[axis],b=c[axis+'1'],d=p[axis];
+        return cubic?roots(-a+3*b-3*c[axis+'2']+d,2*(a-2*b+c[axis+'2']),b-a):roots(0,a-2*b+d,b-a);
+      });
+      for(const t of extrema.filter(t=>t>0&&t<1)){
+        const u=1-t,out={};for(const axis of ['x','y'])out[axis]=cubic?u**3*current[axis]+3*u*u*t*c[axis+'1']+3*u*t*t*c[axis+'2']+t**3*p[axis]:u*u*current[axis]+2*u*t*c[axis+'1']+t*t*p[axis];include(out);
+      }
+    }
+    current=p;
+  }
+  return{x:minX,y:minY,width:maxX-minX,height:maxY-minY};
 }
 const pathData=(path,reverse=false)=>{
   let segments=path.segments;

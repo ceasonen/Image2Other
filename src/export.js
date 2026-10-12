@@ -6,14 +6,14 @@ export async function exportPptx(input, outputType='blob') {
   const scale=10/Math.max(scene.width,scene.height);
   pptx.defineLayout({name:'IMAGE',width:scene.width*scale,height:scene.height*scale}); pptx.layout='IMAGE';
   pptx.author='Image2Other'; pptx.title='Editable image reconstruction'; pptx.subject='Native editable text and vector shapes';
-  pptx.lang='en-US'; pptx.theme={headFontFace:'Arial',bodyFontFace:'Arial',lang:'en-US'};
+  pptx.lang='en-US'; pptx.theme={headFontFace:'Times New Roman',bodyFontFace:'Times New Roman',lang:'en-US'};
   const slide=pptx.addSlide();
   if(scene.background!=='none') slide.background={color:scene.background.slice(1)};
   for(const node of scene.nodes) {
     const options={shapeName:node.name,fill:node.fill==='none'?{color:'FFFFFF',transparency:100}:{color:node.fill.slice(1),transparency:(1-node.opacity)*100},
       line:node.stroke==='none'?{color:'FFFFFF',transparency:100}:{color:node.stroke.slice(1),width:node.strokeWidth*scale*72,transparency:(1-node.opacity)*100}};
     if(node.type==='text') {
-      slide.addText(node.text,{x:node.x*scale,y:node.y*scale,w:node.width*scale,h:node.height*scale,fontFace:'Arial',fontSize:node.fontSize*scale*72,
+      slide.addText(node.text,{x:node.x*scale,y:node.y*scale,w:node.width*scale,h:node.height*scale,fontFace:node.fontFace,fontSize:node.fontSize*scale*72,
         color:node.fill==='none'?'111111':node.fill.slice(1),bold:node.bold,align:node.align,margin:0,breakLine:false,valign:'top',shapeName:node.name,...(node.fitWidth?{fit:'resize'}:{})}); continue;
     }
     if(node.type==='path') {

@@ -20,6 +20,7 @@ jobs:
           node-version: 24
       - run: npm ci --ignore-scripts --no-audit --no-fund
       - run: npm test
+      - run: python3 -m unittest discover -s tests -p test_paddle_service.py
       - run: npm run build
       - name: Verify conversions in a real browser
         shell: bash
@@ -39,6 +40,7 @@ jobs:
           node tests/browser.mjs http://127.0.0.1:4178/Image2Other/ 9226
           node tests/ocr-browser.mjs http://127.0.0.1:4178/Image2Other/ 9226
           node tests/ocr-browser.mjs http://127.0.0.1:4178/Image2Other/ 9226 eng+chi_sim
+          node tests/paddle-browser.mjs http://127.0.0.1:4178/Image2Other/ 9226
       - uses: actions/upload-pages-artifact@v3
         if: github.event_name != 'pull_request'
         with:

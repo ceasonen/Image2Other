@@ -39,3 +39,19 @@ test('trace yields independently editable vector paths and respects alpha', () =
 test('download filename strips paths and replaces its extension', () => {
   assert.equal(outputName('../../my figure.PNG', 'svg'), 'my figure.svg');
 });
+test('generated SVG text defaults to Times New Roman and preserves supported font choices',()=>{
+  const valid=validateScene(scene);assert.equal(valid.nodes[1].fontFace,'Times New Roman');
+  assert.match(sceneToSvg(valid),/font-family="Times New Roman, Times, serif"/);
+  const changed=validateScene({...scene,nodes:[{...scene.nodes[1],fontFace:'Arial'}]});
+  assert.equal(changed.nodes[0].fontFace,'Arial');assert.match(sceneToSvg(changed),/font-family="Arial, sans-serif"/);
+  assert.throws(()=>validateScene({...scene,nodes:[{...scene.nodes[1],fontFace:'url(https://example.com/font)'}]}),/font/i);
+});
+test('stable object IDs and explicit line attachments survive scene/SVG serialization',()=>{
+  const input={width:400,height:200,nodes:[{id:'module-a',type:'rect',x:20,y:30,width:80,height:40},{id:'module-b',type:'rect',x:200,y:30,width:80,height:40},{id:'arrow',type:'line',x:0,y:0,x2:0,y2:0,arrow:true}],connections:[{lineId:'arrow',start:{nodeId:'module-a',u:1,v:.5},end:{nodeId:'module-b',u:0,v:.5}}]};
+  const valid=validateScene(input);assert.equal(valid.nodes[0].id,'module-a');assert.equal(valid.nodes[2].x,100);assert.equal(valid.nodes[2].y,50);assert.equal(valid.nodes[2].x2,200);
+  assert.deepEqual(validateScene(JSON.parse(JSON.stringify(valid))).connections,input.connections);
+  assert.match(sceneToSvg(valid),/data-start-node="module-a"/);
+  assert.throws(()=>validateScene({...input,connections:[{lineId:'arrow',start:{nodeId:'missing',u:1,v:0}}]}));
+  assert.throws(()=>validateScene({...input,connections:[{lineId:'arrow',start:{nodeId:'arrow',u:1,v:0}}]}));
+  assert.throws(()=>validateScene({...input,nodes:[input.nodes[0],{...input.nodes[1],id:'module-a'}]}));
+});

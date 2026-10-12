@@ -4,6 +4,8 @@
 
 A local-first conversion studio for research figures, PDFs, slides and everyday images. Trace a raster image into vector paths, reconstruct a diagram with your vision model, export native PowerPoint objects, and manage documents without uploading your files.
 
+The primary workflow is **image → editable SVG artwork + text → edit → export**. OCR assists the text layer; it is not the final product or a substitute for recovering meaningful figure structure.
+
 [Open the studio](https://ceasonen.github.io/Image2Other/) · [中文说明](docs/README.zh-CN.md) · [Research & credits](docs/research.md) · [Report an issue](https://github.com/ceasonen/Image2Other/issues)
 
 ![Image2Other studio showing an actual local raster-to-path conversion](docs/images/studio.png)
@@ -12,7 +14,7 @@ A local-first conversion studio for research figures, PDFs, slides and everyday 
 
 | Mode | What you get | What stays editable | Requirements |
 | --- | --- | --- | --- |
-| Text + vectors (default) | OCR word boxes plus traced artwork | Reviewed words as SVG text / PPTX text boxes; artwork as paths | Small OCR runtime/language download after permission; local inference |
+| Text + vectors (default) | OCR boxes plus traced artwork | Reviewed words as SVG text / PPTX text boxes; artwork as paths | Browser OCR after permission, existing local Paddle service, or Paddle JSON |
 | Vector trace | Colored vector paths | Path geometry, fill, opacity; PPTX freeform objects | Browser only |
 | AI rebuild | A validated scene of text, shapes, lines, and paths | Text content, geometry, colors, arrows | Your compatible vision provider, or Scene JSON from your AI chat |
 | Image formats | PNG, JPEG, WebP with resize and quality options | Raster pixels, not semantic objects | Browser only |
@@ -39,10 +41,20 @@ Open `http://127.0.0.1:5178/Image2Other/`.
 
 1. Drop, browse, or paste an image. Try the included raster diagram if you want a quick example.
 2. In Text + vectors, allow the small OCR download and click Recognize text. Correct words against their source crops. Use Review mask to inspect removal, optionally Suggest protection, then paint/confirm protected artwork before Build with reviewed text. Or choose Vector trace, AI rebuild, or Image formats.
-3. Inspect the preview. Open Layers to change fills, opacity, text, or basic coordinates. Undo or add text when needed.
+3. Inspect the complete SVG preview. Open Layers to move real paths/shapes/text, change colors and fonts, or add text. Shift-click layers, or toggle Select multiple, to move selected artwork and labels together. Undo is available.
 4. Download SVG, PPTX, Scene JSON, or a raster image.
 
 Text + vectors needs no API key and does not upload images. AI rebuild is an optional alternative for semantic shapes/connectors. [AI setup and scene schema](docs/ai-rebuild.md)
+
+### SVG editing and typography
+
+Traced paths have X/Y controls: moving them rewrites actual M/L/Q/C/Z coordinates, including curve controls and hole contours. Bounds use quadratic/cubic extrema rather than just control-point boxes. Shift-click or Select multiple to move selected artwork and labels together. This is explicit selection, not inferred ownership or persistent semantic grouping.
+
+Native line layers have **Start/End target + port** controls. Choose artwork and a bounding-box port manually; moving that artwork updates its attached endpoint, leaving the other target unchanged. Detach before moving a bound line directly. Scene JSON retains stable IDs and constraints; SVG includes endpoint metadata and synchronized geometry. PPTX exports synchronized native lines, **not active Office connection bindings**. A traced arrow is still a path, not automatically a native line; automatic relation recovery and external-editor constraint execution are not implemented.
+
+Figure text defaults to **Times New Roman** in both SVG and native PPTX. The text-layer editor also offers Arial, Calibri and Georgia; Scene JSON retains the choice. Fonts are not embedded, so another device may substitute an unavailable font. This is a requested output style, not recovery of the source font. PDF text-layer conversion remains a separate document workflow.
+
+**Local PaddleOCR** is an optional Python bridge, not a hosted model. Configure an existing local inference environment/model pair, paste its session token, explicitly allow the loopback request, and select Local PaddleOCR. Alternatively import PaddleOCR 3.x JSON from the same unmodified source. Imported/local labels use the same review → protected masking → traced artwork + native text → SVG/PPTX pipeline and start unselected. Rotated/preprocessed coordinates are refused. [Setup, supported models and current verification limits](docs/paddleocr.md). No Paddle packages or weights are installed automatically. Re-read label currently uses browser Tesseract, including on imported labels.
 
 ### OCR behavior and limits
 
@@ -51,6 +63,8 @@ Tesseract.js 7 / Tesseract LSTM runs in a browser worker, using English or Engli
 **Review mask** opens a source/erase-map and a preview of remaining artwork before native text is added. Protect artwork, clear protection, undo or reset the draft; only Confirm mask & replace saves it. Closing discards draft changes. Suggest protection uses a small connected-component rule: foreground touching the crop's exterior or a long thin component is kept. It is optional, not a learned separator. Joined text/lines can be kept together, leaving old glyphs; short contained shapes can be missed. Inspect and adjust rather than treating the proposal as accurate. A confirmed mask can override the crossing-stroke refusal, but never the mixed-background refusal. Mask crops are capped at 262,144 pixels, 64 strokes and 2,048 points; no new model download is needed.
 
 Single Latin letter/digit labels, including parenthesized/bracketed identifiers, are not preselected even at high confidence: `B/8` and `I/1` confusions can change scientific meaning. Check the crop and explicitly select/correct them. This deliberately reduces automatic coverage, does not guess corrections and does not catch all formula/identifier errors.
+
+**Re-read label** is an optional assistant for an already detected label: it pads/upscales a bounded crop and runs sparse/single-line/raw-line OCR in one local worker. Compare candidates with the source; scores across layouts are not calibrated probabilities, and agreeing candidates can still be wrong. A choice updates only the text draft and leaves Replace unselected. It does not change boxes, graphics or saved protection masks, and cannot find text the initial pass missed. Close/stop discards an unfinished read. Crop candidates and choices are exported as unverified review evidence, not training truth. No new OCR model is downloaded.
 
 Export review JSON v2 saves unverified OCR observations, local text edits, boxes, refusal reasons, replace decisions and confirmed mask instructions. A rename is not automatically an OCR correction, and mask confirmation is not verified segmentation ground truth. No XGBoost classifier is trained or bundled. Real-browser tests recognize authored raster words, inspect/draw/cancel/confirm a mask, edit a label and verify actual SVG text/path and native PPTX text/vector downloads; this is not a general OCR accuracy benchmark.
 
@@ -82,7 +96,7 @@ Tests cover native PPTX XML, PDF page operations, forms/input rejection, ordered
 - The document queue allows 25 files / 50 MB total, up to 200 PDF pages. Rendering is capped at 40 pages, 12 megapixels per page and 32 megapixels per batch. PPTX extraction caps expanded archive contents at 100 MB / 1,000 files. Choose smaller batches when needed.
 - Page changes refuse PDFs containing form/signature fields. Keep originals; document restructuring is not signature preservation. Scans can send a single page to Text + vectors via PDF page → figure studio; there is no bulk scanned-PDF OCR or searchable-PDF export. Password-protected PDFs/PPTX, Office-to-PDF, lossless compression, Word/Excel, EPS and legacy `.ppt` are not implemented. This release does not claim universal conversion or feature parity with Smallpdf.
 - PPTX extraction reads common DrawingML text runs and embedded PNG/JPEG/WebP/GIF media. It does not render slides, recover linked images, extract editable charts or guarantee reading order within a slide. Image-to-PDF downscales longest edges above 4,096 pixels and uses white backgrounds.
-- Current figure paths support absolute M/L/Q/C/Z commands and solid fills. Gradients, editable equations and native attached-connector relationships remain outside the public figure editor.
+- Current figure paths support absolute M/L/Q/C/Z commands and solid fills. Gradients, editable equations, automatic connector recovery and active Office connector bindings remain outside the public figure editor.
 
 ## Deployment
 

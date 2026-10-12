@@ -36,6 +36,21 @@ try{
   const labels=await evaluate(`[...document.querySelectorAll('[data-ocr-text]')].map(x=>({text:x.value,disabled:document.querySelector('[data-ocr-select="'+x.dataset.ocrText+'"]').disabled,score:x.parentElement.querySelector('small').textContent}))`);
   assert.equal(labels.find(x=>x.text==='Model')?.disabled,false,`Test label must be replaceable: ${JSON.stringify(labels)}`);
   const modelId=await evaluate(`[...document.querySelectorAll('[data-ocr-text]')].find(x=>x.value==='Model').dataset.ocrText`);
+  assert.equal(await evaluate(`!!document.querySelector('[data-ocr-reread="${modelId}"]')`),true,'Labels need an explicit focused OCR comparison');
+  await evaluate(`document.querySelector('[data-ocr-reread="${modelId}"]').click()`);
+  await wait(`document.querySelector('#crop-dialog')?.open`);
+  assert.equal(await evaluate(`document.querySelector('[data-ocr-text="${modelId}"]').value`),'Model','Opening comparison cannot mutate text');
+  await evaluate(`document.querySelector('#crop-read').click();document.querySelector('#crop-stop').click()`);
+  await wait(`!document.querySelector('#crop-read').disabled`);
+  assert.equal(await evaluate(`document.querySelector('[data-ocr-text="${modelId}"]').value`),'Model','Stopping an unfinished read cannot mutate text');
+  await evaluate(`document.querySelector('#crop-read').click()`);
+  await wait(`!document.querySelector('#crop-read').disabled&&document.querySelectorAll('[data-crop-choice]').length>0`);
+  assert.ok(await evaluate(`[...document.querySelectorAll('[data-crop-choice]')].some(x=>x.textContent.includes('Model'))`),'Real focused OCR returns the authored label');
+  for(const width of [390,320]){await send('Emulation.setDeviceMetricsOverride',{width,height:1100,deviceScaleFactor:1,mobile:true});assert.equal(await evaluate(`document.documentElement.scrollWidth<=innerWidth&&document.querySelector('#crop-dialog').scrollWidth<=document.querySelector('#crop-dialog').clientWidth`),true,`Crop comparison fits ${width}`);}
+  await send('Emulation.setDeviceMetricsOverride',{width:1440,height:1100,deviceScaleFactor:1,mobile:false});
+  await evaluate(`[...document.querySelectorAll('[data-crop-choice]')].find(x=>x.textContent.includes('Model')).click()`);
+  await wait(`!document.querySelector('#crop-dialog').open`);
+  assert.equal(await evaluate(`document.querySelector('[data-ocr-select="${modelId}"]').checked`),false,'Choosing a candidate must not authorize replacement');
   assert.equal(await evaluate(`!!document.querySelector('[data-ocr-mask="${modelId}"]')`),true,'Each eligible label needs a visual erase-mask review');
   await evaluate(`document.querySelector('[data-ocr-mask="${modelId}"]').click()`);
   await wait(`document.querySelector('#mask-dialog')?.open`);
@@ -56,7 +71,7 @@ try{
   await send('Emulation.setDeviceMetricsOverride',{width:1440,height:1100,deviceScaleFactor:1,mobile:false});
   const maskShot=await send('Page.captureScreenshot');await fs.writeFile('.build/preview/mask-editor.png',Buffer.from(maskShot.data,'base64'));
   await evaluate(`document.querySelector('#mask-save').click()`);await wait(`!document.querySelector('#mask-dialog').open`);
-  assert.match(await evaluate(`document.querySelector('[data-ocr-mask="${modelId}"]').parentElement.querySelector('small').textContent`),/mask reviewed/);
+  assert.match(await evaluate(`document.querySelector('[data-ocr-mask="${modelId}"]').closest('.ocr-word').querySelector('small').textContent`),/mask reviewed/);
   await evaluate(`document.querySelector('[data-ocr-mask="${modelId}"]').click()`);await wait(`document.querySelector('#mask-dialog').open`);
   assert.match(await evaluate(`document.querySelector('#mask-status').textContent`),/2 strokes/,'Confirmed strokes survive reopening');
   await evaluate(`document.querySelector('#mask-undo').click()`);
@@ -76,12 +91,16 @@ try{
   assert.ok(review.words.some(w=>w.originalText==='Model'&&w.correctedText==='Encoder'&&w.replace));
   const approved=review.words.find(w=>w.originalText==='Model').maskReview;
   assert.equal(approved.userConfirmed,true);assert.equal(approved.strokes.length,2);assert.equal(review.annotationStatus,'unverified');
+  const cropReview=review.words.find(w=>w.originalText==='Model').cropReview;
+  assert.equal(cropReview.choiceText,'Model');assert.equal(cropReview.correctnessVerified,false);
   await evaluate(`document.querySelector('#export-svg').click();document.querySelector('#export-pptx').click()`);
   await wait(`document.querySelector('#status').textContent.includes('PPTX downloaded')`);
   await new Promise(r=>setTimeout(r,250));
   const svg=await fs.readFile(path.join(dir,'ocr-diagram.svg'),'utf8');assert.match(svg,/<text /);assert.match(svg,/Encoder/);assert.doesNotMatch(svg,/<image /);
+  assert.match(svg,/font-family="Times New Roman, Times, serif"/);
   const zip=await JSZip.loadAsync(await fs.readFile(path.join(dir,'ocr-diagram.pptx')));
   const slide=await zip.file('ppt/slides/slide1.xml').async('string');assert.match(slide,/<a:t>Encoder<\/a:t>/);assert.match(slide,/<a:custGeom>/);assert.doesNotMatch(slide,/<p:pic>/);
+  assert.match(slide,/typeface="Times New Roman"/);
   for(const width of [1440,390,320]){await send('Emulation.setDeviceMetricsOverride',{width,height:1100,deviceScaleFactor:1,mobile:width<600});assert.equal(await evaluate(`document.documentElement.scrollWidth<=innerWidth`),true,`OCR has no overflow at ${width}`);}
   await send('Emulation.setDeviceMetricsOverride',{width:1440,height:1100,deviceScaleFactor:1,mobile:false});
   await evaluate(`document.querySelector('#studio').scrollIntoView()`);
