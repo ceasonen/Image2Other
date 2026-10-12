@@ -84,7 +84,7 @@ Report correct executed edits per attempted edit, wrong executed edits, abstenti
 
 **Stop this research variant** if response-aware selection has no advantage over confidence/geometry/active-query baselines at matched coverage and cost, if gains disappear when OCR and human corrections are matched, or if candidate omission dominates error. Do not equate this plan, UI improvement or nine synthetic diagnostic cases with an ICML Oral-level contribution. No held-out real-figure study, learned reconstruction, calibrated guarantee or automatic attached-connector pipeline has been demonstrated.
 
-No new model downloads, training or paid API runs are part of this plan. Keep experiments small until the diagnostic justifies more resources. The [reading map](research.md) records nearby work and direct overlaps; the ignored local manuscript remains pre-experimental and must not present these software checks as benchmark results.
+No new model downloads, training or paid API runs are part of this plan. Keep experiments small until the diagnostic justifies more resources. The [reading map](research.md) records nearby work and direct overlaps; the [working paper](../research/paper/main.pdf) remains pre-experimental and must not present these software checks as benchmark results.
 
 ## Engineering release gate
 

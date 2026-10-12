@@ -1,0 +1,42 @@
+\begin{tikzpicture}[x=1cm,y=1cm,>=stealth,
+  textstyle/.style={font=\sffamily\fontsize{8}{9}\selectfont},
+  head/.style={font=\sffamily\fontsize{9}{10}\selectfont\bfseries},
+  module/.style={draw=ptblue,very thick,rounded corners=1pt,minimum width=1.05cm,minimum height=.50cm,textstyle},
+  nodebox/.style={draw=black!45,rounded corners=2pt,minimum height=.75cm,textstyle,align=center,inner sep=4pt},
+  flow/.style={->,line width=.7pt,black!65}]
+  \node[head,anchor=west] at (0,3.52) {(a) Equal pixels, divergent responses};
+  \node[module] (a0) at (1.85,2.40) {};
+  \node[textstyle] at (1.85,1.74) {Label L};
+  \draw[black!40] (1.85,1.91) -- (1.85,2.13);
+  \node[textstyle] at (1.85,1.12) {Initial raster};
+  \node[module] (b1) at (5.1,2.40) {};
+  \node[module] (a1) at (6.55,2.40) {};
+  \node[textstyle,text=black!60] at (5.1,2.78) {B};
+  \node[textstyle,text=black!60] at (6.55,2.78) {A};
+  \draw[flow] (a0.east) -- node[above,textstyle] {move A} (b1.west);
+  \node[textstyle,text=ptgreen] at (6.55,1.74) {L follows A};
+  \draw[ptgreen,line width=.65pt] (6.55,1.91) -- (6.55,2.13);
+  \node[textstyle] at (5.85,1.12) {Observed response};
+  \node[textstyle,text=black!65] at (9.65,3.03) {same move A};
+  \node[module] at (8.9,2.40) {};
+  \node[module] at (10.35,2.40) {};
+  \node[textstyle,text=black!60] at (8.9,2.78) {B};
+  \node[textstyle,text=black!60] at (10.35,2.78) {A};
+  \node[textstyle,text=ptred] at (8.9,1.74) {L stays with B};
+  \draw[ptred,line width=.65pt] (8.9,1.91) -- (8.9,2.13);
+  \node[textstyle] at (9.65,1.12) {Alternative relation};
+  \draw[black!25] (0,.75) -- (11.65,.75);
+  \node[head,anchor=west] at (0,.36) {(b) Response-only training and selective execution};
+  \node[nodebox,draw=ptblue] (input) at (1.2,-.55) {Raster +\\ objects};
+  \node[nodebox,draw=ptgreen] (source) at (1.2,-1.75) {Source edit\\ + response};
+  \node[nodebox,draw=ptblue,minimum width=1.55cm] (score) at (4.0,-.55) {Relation\\ scorer};
+  \node[nodebox,minimum width=1.55cm] (execute) at (6.95,-.55) {Candidate\\ executor};
+  \node[nodebox,draw=ptgreen,minimum width=1.65cm] (loss) at (6.95,-1.75) {Response\\ likelihood};
+  \node[nodebox,draw=ptred,minimum width=1.75cm] (decision) at (10.25,-.55) {Agree: edit\\ Disagree: ask};
+  \draw[flow] (input) -- (score);
+  \draw[flow] (score) -- (execute);
+  \draw[flow] (execute) -- (decision);
+  \draw[flow] (source) -- (loss);
+  \draw[flow] (execute) -- (loss);
+  \draw[->,dashed,black!55] (loss.west) -| node[pos=.78,left,textstyle] {train} (score.south);
+\end{tikzpicture}
