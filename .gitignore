@@ -5,7 +5,7 @@ dist/
 *.local
 .env*
 !.env.example
-research/
+/research/
 project_context.md
 __pycache__/
 .venv/

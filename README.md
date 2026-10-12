@@ -6,7 +6,7 @@ A local-first conversion studio for research figures, PDFs, slides and everyday 
 
 The primary workflow is **image → editable SVG artwork + text → edit → export**. OCR assists the text layer; it is not the final product or a substitute for recovering meaningful figure structure.
 
-[Open the studio](https://ceasonen.github.io/Image2Other/) · [Research project page](https://huggingface.co/spaces/alexchenc10/Image2Other) · [中文说明](docs/README.zh-CN.md) · [Research & credits](docs/research.md) · [Report an issue](https://github.com/ceasonen/Image2Other/issues)
+[Open the studio](https://ceasonen.github.io/Image2Other/) · [Research project page](https://ceasonen.github.io/Image2Other/research/) · [中文说明](docs/README.zh-CN.md) · [Research & credits](docs/research.md) · [Report an issue](https://github.com/ceasonen/Image2Other/issues)
 
 ![Image2Other studio showing an actual local raster-to-path conversion](docs/images/studio.png)
 
