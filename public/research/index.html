@@ -3,54 +3,128 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#f7f5f1">
-  <meta name="description" content="Image2Other explores editable reconstruction of scientific figures from raster images. Try the working converter and follow the research prototype.">
+  <meta name="theme-color" content="#ffffff">
+  <meta name="description" content="Image2Other studies how to reconstruct scientific figures as editable scenes that remain coherent after local edits.">
   <title>Image2Other · Editable Scientific Figures</title>
   <link rel="icon" href="static/images/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
   <link rel="stylesheet" href="static/css/site.css">
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
-  <header class="site-header"><div class="shell header-inner">
-    <a class="brand" href="#top" aria-label="Image2Other home"><span class="brand-symbol" aria-hidden="true">I<span>↗</span></span><span>Image2Other</span></a>
-    <nav aria-label="Primary navigation"><a href="#abstract">Abstract</a><a href="#approach">Method</a><a href="#evaluation">Evaluation</a><a href="#status">Status</a></nav>
-    <a class="header-demo" href="https://ceasonen.github.io/Image2Other/" target="_blank" rel="noopener noreferrer">Open converter <span aria-hidden="true">↗</span></a>
-  </div></header>
   <main id="main">
-    <section class="hero shell" id="top" aria-labelledby="hero-title">
-      <div class="hero-copy">
-        <div class="eyebrow"><span class="status-dot" aria-hidden="true"></span> Working title <span class="eyebrow-divider">/</span> Research prototype</div>
-        <h1 id="hero-title">Edit-Preserving Reconstruction of <em>Scientific Figures</em></h1>
-        <p class="hero-lede">Recover editable text, vector shapes, and connections from a flat image—then test whether a local edit preserves the rest of the figure.</p>
-        <p class="hero-author"><strong>Cheng Chen</strong><span class="author-rule" aria-hidden="true"></span>Tongji University</p>
-        <div class="hero-actions"><a class="button button-primary" href="https://ceasonen.github.io/Image2Other/" target="_blank" rel="noopener noreferrer">Interactive demo <span aria-hidden="true">↗</span></a><a class="button button-outline" href="https://github.com/ceasonen/Image2Other" target="_blank" rel="noopener noreferrer">Code <span aria-hidden="true">↗</span></a></div>
-        <p class="hero-note">Research project page · no paper or quantitative results released yet.</p>
-      </div>
-      <div class="hero-visual" aria-label="Concept illustration of raster pixels becoming separate editable text, vector shapes, and a connector">
-        <div class="visual-topline"><span>FIGURE / 01</span><span>STRUCTURE, NOT JUST PIXELS</span></div>
-        <svg viewBox="0 0 550 470" role="img" aria-labelledby="hero-fig-title hero-fig-desc">
-          <title id="hero-fig-title">Editable figure reconstruction concept</title><desc id="hero-fig-desc">A raster sample on the left is separated into editable text, shapes, and a connector on the right.</desc>
-          <defs><pattern id="pixels" width="11" height="11" patternUnits="userSpaceOnUse"><rect width="11" height="11" fill="#dcd8d0"/><path d="M11 0H0V11" fill="none" stroke="#f7f5f1" stroke-width="2"/></pattern><marker id="arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0 0L9 4.5L0 9Z" fill="#a66055"/></marker></defs>
-          <text x="32" y="54" class="fig-label">FLATTENED INPUT</text><text x="322" y="54" class="fig-label">EDITABLE OUTPUT</text>
-          <rect x="22" y="82" width="226" height="279" rx="11" fill="#ebe8e1"/><rect x="39" y="105" width="192" height="235" rx="4" fill="url(#pixels)"/><rect x="65" y="146" width="142" height="48" rx="7" fill="#8588ad" opacity=".82"/><rect x="78" y="158" width="92" height="8" rx="3" fill="#eeeae8" opacity=".88"/><rect x="78" y="173" width="68" height="6" rx="3" fill="#eeeae8" opacity=".66"/><path d="M96 260H174" stroke="#a66055" stroke-width="11" stroke-linecap="round" opacity=".65"/><circle cx="80" cy="260" r="19" fill="#abbbaf"/><circle cx="190" cy="260" r="19" fill="#abbbaf"/>
-          <path d="M263 220H293" stroke="#a66055" stroke-width="2" marker-end="url(#arrow)"/><rect x="309" y="82" width="222" height="279" rx="11" fill="#fffdfa" stroke="#ded9d1"/><rect x="331" y="107" width="177" height="89" rx="8" fill="#f5f0ec" stroke="#ddb9b2" stroke-dasharray="5 5"/><text x="347" y="140" class="fig-text">Model output</text><text x="347" y="168" class="fig-sub">native text layer</text><circle cx="357" cy="263" r="23" fill="#d9e4d8" stroke="#91ab94" stroke-width="2"/><circle cx="481" cy="263" r="23" fill="#d9e4d8" stroke="#91ab94" stroke-width="2"/><path d="M381 263H454" stroke="#a66055" stroke-width="3" marker-end="url(#arrow)"/><rect x="346" y="296" width="150" height="38" rx="19" fill="#f5f0ec"/><text x="363" y="320" class="fig-sub">attached connector</text><text x="42" y="395" class="fig-foot">one raster layer</text><text x="325" y="395" class="fig-foot">independent objects</text>
-        </svg>
-        <p class="visual-caption">Concept illustration · not a measured reconstruction result</p>
+    <section class="publication-header wrap" aria-labelledby="hero-title">
+      <p class="project-label">Image2Other <span aria-hidden="true">/</span> Research prototype</p>
+      <h1 id="hero-title" class="publication-title">Edit-Preserving Reconstruction of <em>Scientific Figures</em></h1>
+      <p class="publication-authors"><a href="https://ceasonen.github.io/">Cheng Chen</a></p>
+      <p class="publication-affiliation">Tongji University</p>
+      <p class="publication-status">Working title · ongoing research</p>
+      <div class="publication-links" aria-label="Project resources">
+        <a href="https://ceasonen.github.io/Image2Other/" target="_blank" rel="noopener noreferrer"><span aria-hidden="true">↗</span> Interactive demo</a>
+        <a href="https://github.com/ceasonen/Image2Other" target="_blank" rel="noopener noreferrer"><span aria-hidden="true">⌘</span> Code</a>
+        <a href="https://github.com/ceasonen/Image2Other/blob/main/docs/development-contract.md" target="_blank" rel="noopener noreferrer"><span aria-hidden="true">▤</span> Research notes</a>
       </div>
     </section>
-    <section class="abstract-section shell" id="abstract" aria-labelledby="abstract-title"><p class="section-kicker">THE RESEARCH QUESTION</p><h2 id="abstract-title">Abstract</h2><p>Scientific figures are often available only as flattened images, making even a small revision difficult. Existing conversion workflows may recover visual similarity while leaving labels, shapes, and connections hard to edit independently. We study a stricter reconstruction goal: an editable scene whose text is legible, whose relationships remain valid after a local change, and whose untouched regions stay stable. Our current prototype combines reviewed OCR suggestions, vector tracing, scene-level editing, and render–compare feedback. These components define an engineering baseline and a candidate evaluation protocol; they do not yet establish a new trained method or measured research result.</p></section>
-    <section class="question-band" id="question" aria-labelledby="question-title"><div class="shell question-grid"><div><p class="section-kicker">01 / PROBLEM</p><h2 id="question-title">Similarity is not enough.</h2></div><div class="question-body"><p>A regenerated figure can look convincing yet fail the first time someone edits a label, moves a module, or checks where an arrow points. We are interested in a stricter goal: <strong>reconstruct a figure that stays coherent after a local change, without disturbing unrelated regions.</strong></p><p>That shifts the target from pure pixel imitation toward recoverable structure, legible text, and measurable edit behavior.</p></div></div></section>
-    <section class="section shell" id="approach" aria-labelledby="approach-title"><div class="section-heading"><p class="section-kicker">02 / APPROACH</p><h2 id="approach-title">A reconstruction loop with a reason to iterate.</h2><p>The engineering prototype exposes each layer so errors can be found, corrected, and eventually studied—not hidden behind a single export button.</p></div><div class="workflow" role="list">
-      <article class="workflow-step" role="listitem"><span class="step-number">01</span><div><h3>Read the text</h3><p>OCR proposes words and locations. People review the labels before glyph pixels are replaced by native SVG/PPTX text.</p></div><span class="step-tag">Working</span></article>
-      <article class="workflow-step" role="listitem"><span class="step-number">02</span><div><h3>Recover editable artwork</h3><p>Raster regions are traced into vector paths; a scene editor also supports explicit shapes, lines, and anchor targets.</p></div><span class="step-tag">Working</span></article>
-      <article class="workflow-step" role="listitem"><span class="step-number">03</span><div><h3>Render and compare</h3><p>The exported scene is rendered back to pixels and compared with the source. A bounded local position search can reduce image error for selected layers.</p></div><span class="step-tag">Working</span></article>
-      <article class="workflow-step" role="listitem"><span class="step-number">04</span><div><h3>Learn from edits</h3><p>Future experiments will test whether local edits preserve text, connections, and untouched regions—and whether a compact model improves reconstruction decisions.</p></div><span class="step-tag step-tag-future">Research plan</span></article>
-    </div></section>
-    <section class="demo-section" aria-labelledby="demo-title"><div class="shell demo-grid"><div class="demo-copy"><p class="section-kicker">THE ENGINEERING PROTOTYPE</p><h2 id="demo-title">An open testbed for editable reconstruction.</h2><p>Upload a figure, review OCR suggestions, protect graphic regions during text replacement, trace artwork, edit the scene, and export SVG or PowerPoint. The live tool also contains separate image and document converters.</p><a class="text-link" href="https://ceasonen.github.io/Image2Other/" target="_blank" rel="noopener noreferrer">Open the interactive demo <span aria-hidden="true">↗</span></a><p class="fine-print">This screenshot shows the running browser tool; its output quality varies with the input and requires review.</p></div><figure class="demo-frame"><img src="static/images/studio.png" width="1200" height="760" loading="lazy" alt="Image2Other browser studio with editable layers and conversion controls"><figcaption>Current browser-based converter · basic workflows stay on your device</figcaption></figure></div></section>
-    <section class="section shell" id="evaluation" aria-labelledby="evaluation-title"><div class="section-heading"><p class="section-kicker">03 / EVALUATION PLAN</p><h2 id="evaluation-title">Measure what survives an edit.</h2><p>A candidate benchmark would pair source figures with verified structures and controlled edit tasks. These are evaluation axes, <strong>not published results</strong>.</p></div><div class="metrics"><div class="metric"><span>01</span><h3>Visual fidelity</h3><p>Render the rebuilt figure and compare it with the source, including local difference maps.</p></div><div class="metric"><span>02</span><h3>Text correctness</h3><p>Check recognized labels, formulas, and their attachment to the right visual region.</p></div><div class="metric"><span>03</span><h3>Relation validity</h3><p>Test whether arrows and connectors retain the intended source and target after a component moves.</p></div><div class="metric"><span>04</span><h3>Edit locality</h3><p>Quantify unwanted changes outside the region deliberately edited by a user.</p></div></div><aside class="research-note"><span class="note-symbol" aria-hidden="true">↗</span><div><strong>Why the loop matters</strong><p>Render–compare feedback can propose local repairs and record failure cases. Pixel error alone cannot certify semantic correctness; independent human-checked labels and held-out tasks are needed before training or claiming improvement.</p></div></aside></section>
-    <section class="status-section" id="status" aria-labelledby="status-title"><div class="shell status-grid"><div><p class="section-kicker">04 / RELEASE STATUS</p><h2 id="status-title">Open prototype.<br><em>Open questions.</em></h2></div><div class="status-list"><div><span class="status-bullet active" aria-hidden="true"></span><p><strong>Available now</strong><br>Browser converter, editable SVG/PPTX export, reviewed text workflow, and a local optional PaddleOCR bridge.</p></div><div><span class="status-bullet pending" aria-hidden="true"></span><p><strong>Not yet released</strong><br>No trained model weights or benchmark dataset have been released. A paper and controlled evaluation are still in progress.</p></div><div><span class="status-bullet pending" aria-hidden="true"></span><p><strong>Current limits</strong><br>Fonts and semantics are approximate; equations, handwriting, rotated labels, and automatically inferred connections remain difficult.</p></div></div></div></section>
-    <section class="closing shell"><p class="section-kicker">PROJECT RESOURCES</p><h2>Explore the prototype and its open questions.</h2><p>The code, interactive demo, and development notes are public. Failure cases and carefully verified edits will guide the next stage of research.</p><div class="hero-actions"><a class="button button-primary" href="https://ceasonen.github.io/Image2Other/" target="_blank" rel="noopener noreferrer">Interactive demo <span aria-hidden="true">↗</span></a><a class="button button-outline" href="https://github.com/ceasonen/Image2Other" target="_blank" rel="noopener noreferrer">Code &amp; documentation <span aria-hidden="true">↗</span></a></div></section>
+
+    <figure class="teaser wrap" aria-labelledby="teaser-caption">
+      <svg viewBox="0 0 1200 480" role="img" aria-labelledby="teaser-title teaser-desc" xmlns="http://www.w3.org/2000/svg">
+        <title id="teaser-title">Concept for edit-preserving figure reconstruction</title>
+        <desc id="teaser-desc">A flattened image is reconstructed into editable labels, shapes, and anchored connections. Moving one component should preserve its connection and leave another component unchanged.</desc>
+        <defs>
+          <pattern id="raster" width="12" height="12" patternUnits="userSpaceOnUse"><rect width="12" height="12" fill="#f5f7fb"/><path d="M12 0H0V12" fill="none" stroke="#e1e5ec" stroke-width="1.4"/></pattern>
+          <marker id="arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="9" markerHeight="9" orient="auto"><path d="M0 0L8 4L0 8Z" fill="#657eac"/></marker>
+        </defs>
+        <rect width="1200" height="480" rx="18" fill="#f7f9fc"/>
+        <path d="M0 78H1200" stroke="#e4e9f1"/>
+        <text x="42" y="48" class="diagram-overline">SOURCE IMAGE</text>
+        <text x="435" y="48" class="diagram-overline">EDITABLE RECONSTRUCTION</text>
+        <text x="839" y="48" class="diagram-overline">LOCAL EDIT</text>
+        <path d="M399 92V438M806 92V438" stroke="#e4e9f1"/>
+
+        <rect x="56" y="124" width="283" height="233" rx="8" fill="url(#raster)" stroke="#d4dce9"/>
+        <rect x="85" y="159" width="94" height="72" rx="10" fill="#91a9d2" opacity=".75"/>
+        <rect x="218" y="159" width="94" height="72" rx="10" fill="#a8c9c5" opacity=".75"/>
+        <path d="M182 195H213" stroke="#7889a3" stroke-width="7" stroke-linecap="round" opacity=".7"/>
+        <path d="M101 180H158M101 191H146" stroke="#fff" stroke-width="6" stroke-linecap="round" opacity=".7"/>
+        <path d="M234 180H288M234 191H275" stroke="#fff" stroke-width="6" stroke-linecap="round" opacity=".7"/>
+        <text x="92" y="296" class="raster-text">Model A → Model B</text>
+        <text x="92" y="323" class="raster-sub">one flattened pixel layer</text>
+        <text x="57" y="397" class="diagram-caption">Looks like a diagram. Edits like a photograph.</text>
+
+        <rect x="452" y="124" width="118" height="75" rx="10" fill="#e3eaf8" stroke="#8ea9d7" stroke-width="2"/>
+        <text x="473" y="170" class="node-text">Model A</text>
+        <rect x="662" y="124" width="118" height="75" rx="10" fill="#def0ed" stroke="#8cbeb6" stroke-width="2"/>
+        <text x="682" y="170" class="node-text">Model B</text>
+        <path d="M572 161H651" stroke="#657eac" stroke-width="3" marker-end="url(#arrow)"/>
+        <rect x="449" y="253" width="335" height="82" rx="10" fill="#fff" stroke="#d6dfec"/>
+        <text x="470" y="283" class="layer-label">EDITABLE LAYERS</text>
+        <text x="470" y="311" class="layer-text">text  ·  vector shapes  ·  attached arrow</text>
+        <text x="453" y="397" class="diagram-caption">Each element can be selected and revised.</text>
+
+        <rect x="850" y="124" width="118" height="75" rx="10" fill="#e3eaf8" stroke="#8ea9d7" stroke-width="2"/>
+        <text x="872" y="170" class="node-text">Model A</text>
+        <rect x="1060" y="227" width="118" height="75" rx="10" fill="#def0ed" stroke="#8cbeb6" stroke-width="2"/>
+        <text x="1081" y="273" class="node-text">Model B</text>
+        <path d="M968 164C1027 164 1002 265 1049 265" fill="none" stroke="#657eac" stroke-width="3" marker-end="url(#arrow)"/>
+        <path d="M1118 120V206" stroke="#e2a49b" stroke-width="2" stroke-dasharray="6 5"/>
+        <text x="878" y="325" class="layer-label">DESIRED BEHAVIOR</text>
+        <text x="878" y="352" class="layer-text">connection follows · other regions stay put</text>
+        <text x="851" y="397" class="diagram-caption">An evaluation target, not a claimed result.</text>
+      </svg>
+      <p class="mobile-scroll-hint">Swipe to inspect the figure ↔</p>
+      <figcaption id="teaser-caption"><strong>Figure 1.</strong> A concept illustration of the research goal: recover editable structure from pixels, then test whether local edits preserve labels, connections, and untouched regions. Concept illustration · not a measured reconstruction result.</figcaption>
+    </figure>
+
+    <section class="content-section abstract-section" id="abstract" aria-labelledby="abstract-title">
+      <div class="reading-width">
+        <h2 id="abstract-title">Abstract</h2>
+        <p>Scientific figures are often available only as flattened images, making even a small revision difficult. Existing conversion workflows may recover visual similarity while leaving labels, shapes, and connections hard to edit independently. We study a stricter reconstruction goal: an editable scene whose text is legible, whose relationships remain valid after a local change, and whose untouched regions stay stable. Our current prototype combines reviewed OCR suggestions, vector tracing, scene-level editing, and render–compare feedback. These components define an engineering baseline and a candidate evaluation protocol; they do not yet establish a new trained method or measured research result.</p>
+      </div>
+    </section>
+
+    <section class="content-section tinted" id="approach" aria-labelledby="approach-title">
+      <div class="wrap">
+        <div class="section-intro"><p class="section-label">Research direction</p><h2 id="approach-title">From pixels to an editable scene</h2><p>The current system separates recognition, geometry, and relationships rather than treating the exported SVG as one traced image.</p></div>
+        <div class="method-grid">
+          <article><span class="method-number">01</span><h3>Recover text</h3><p>OCR proposes labels and locations; users review the suggestions before glyph pixels become native SVG or PowerPoint text.</p></article>
+          <article><span class="method-number">02</span><h3>Rebuild artwork</h3><p>Raster regions are traced into vector paths. The scene editor supports explicit shapes, lines, and manually assigned connector targets.</p></article>
+          <article><span class="method-number">03</span><h3>Render and compare</h3><p>The exported scene is rendered back to pixels. A bounded local position search can reduce image error for selected layers.</p></article>
+          <article><span class="method-number">04</span><h3>Test local edits</h3><p>Planned experiments will ask whether edits preserve text, connections, and untouched regions—and whether a compact model helps.</p></article>
+        </div>
+      </div>
+    </section>
+
+    <section class="content-section" id="prototype" aria-labelledby="prototype-title">
+      <div class="wrap">
+        <div class="section-intro"><p class="section-label">Engineering prototype</p><h2 id="prototype-title">Try the current converter</h2><p>Upload a figure, review OCR suggestions, trace artwork, edit scene layers, and export SVG or PowerPoint. The live tool also includes separate image and document converters.</p></div>
+        <figure class="prototype-figure"><img src="https://raw.githubusercontent.com/ceasonen/Image2Other/main/docs/images/studio.png" width="1200" height="760" loading="lazy" alt="Image2Other browser studio with editable layers and conversion controls"><figcaption><strong>Figure 2.</strong> The current browser-based editor. Output quality varies with the input and requires review. <a href="https://ceasonen.github.io/Image2Other/" target="_blank" rel="noopener noreferrer">Open the interactive demo ↗</a></figcaption></figure>
+      </div>
+    </section>
+
+    <section class="content-section tinted" id="evaluation" aria-labelledby="evaluation-title">
+      <div class="wrap">
+        <div class="section-intro"><p class="section-label">Evaluation plan</p><h2 id="evaluation-title">Measure what survives an edit</h2><p>A candidate benchmark would pair source figures with verified structure and controlled edit tasks. The axes below are a plan, not published results.</p></div>
+        <div class="evaluation-list">
+          <div><strong>Visual fidelity</strong><span>Render the scene and compare it with the source, including local difference maps.</span></div>
+          <div><strong>Text correctness</strong><span>Verify labels, formulas, and placement against human-checked references.</span></div>
+          <div><strong>Relation validity</strong><span>Check whether connectors retain the intended endpoints after components move.</span></div>
+          <div><strong>Edit locality</strong><span>Quantify unwanted changes outside the region deliberately edited by a user.</span></div>
+        </div>
+        <p class="evaluation-note">Pixel error alone cannot certify semantic correctness; held-out tasks and human-checked labels are needed before claiming improvement.</p>
+      </div>
+    </section>
+
+    <section class="content-section status-section" id="status" aria-labelledby="status-title">
+      <div class="reading-width">
+        <h2 id="status-title">Project status</h2>
+        <p><strong>Available now:</strong> a browser converter, editable SVG/PPTX export, a reviewed text workflow, and an optional local PaddleOCR bridge.</p>
+        <p><strong>Still open:</strong> fonts and semantics remain approximate; equations, handwriting, rotated labels, and automatically inferred connections are difficult. No trained model weights or benchmark dataset have been released. A paper and controlled evaluation are still in progress.</p>
+        <div class="closing-links"><a href="https://ceasonen.github.io/Image2Other/" target="_blank" rel="noopener noreferrer">Interactive demo ↗</a><a href="https://github.com/ceasonen/Image2Other" target="_blank" rel="noopener noreferrer">Code and documentation ↗</a></div>
+      </div>
+    </section>
   </main>
-  <footer class="site-footer"><div class="shell footer-inner"><span>Image2Other <span class="footer-sep">/</span> Cheng Chen</span><span>Research prototype · 2026</span><a href="https://github.com/ceasonen/Image2Other" target="_blank" rel="noopener noreferrer">Source code ↗</a></div></footer>
+  <footer class="site-footer wrap"><span>Image2Other · Cheng Chen</span><span>Page structure inspired by <a href="https://nerfies.github.io/">Nerfies</a> and <a href="https://chordedit.github.io/">ChordEdit</a>. <a href="https://creativecommons.org/licenses/by-sa/4.0/">Template license</a>.</span></footer>
 </body>
 </html>
