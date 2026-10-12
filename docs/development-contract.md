@@ -22,7 +22,7 @@ For the next controlled study, freeze a small licensed corpus by figure family b
 
 Whole-figure editing is the engineering priority. Manually supplied line attachments are implemented; automatic component ownership, connector recovery and learned local repair are **not implemented**. Image/document conversion remains useful supporting infrastructure, not the research contribution.
 
-User-directed focus update: the deliverable is a usable editable **SVG figure**, not an OCR service. Native path movement, explicit multi-layer movement and manual endpoint constraints are implemented. Automatic grouping and relation inference are not. Times New Roman is the requested SVG/PPTX text default. Font matching, layout fidelity and relation correctness remain separate measurements. Local PaddleOCR transport/JSON adapters feed the same masking/vector/native-text workflow; their HTTP tests inject a recognizer. Real Paddle inference and reconstruction gains remain untested without a provisioned environment and local weights.
+User-directed focus update: the deliverable is a usable editable **SVG figure**, not an OCR service. Native path movement, explicit multi-layer movement and manual endpoint constraints are implemented. Automatic grouping and relation inference are not. Times New Roman is the requested SVG/PPTX text default. Font matching, layout fidelity and relation correctness remain separate measurements. Local PaddleOCR transport/JSON adapters feed the same masking/vector/native-text workflow; browser tests inject a recognizer, while a separate real PP-OCRv5 mobile + HTTP smoke test passed on one Apple Silicon Mac. Scientific-figure accuracy and reconstruction gains remain untested.
 
 ## Current evidence: isolate text removal
 
