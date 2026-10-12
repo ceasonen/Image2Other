@@ -89,6 +89,7 @@ function setBusy(value){state.busy=value;$('#convert').disabled=value||!state.so
   for(const el of document.querySelectorAll('[data-ocr-mask]')){const word=state.ocr?.words.find(w=>w.id===el.dataset.ocrMask);el.disabled=value||!word?.safeBackground||word.box.width*word.box.height>MAX_MASK_PIXELS;}
   for(const el of document.querySelectorAll('[data-ocr-reread]')){const word=state.ocr?.words.find(w=>w.id===el.dataset.ocrReread);el.disabled=value||!word||word.box.width*word.box.height>MAX_MASK_PIXELS;}
   for(const id of ['export-svg','export-pptx','export-json','add-text','toggle-layers','multi-select'])$('#'+id).disabled=value||!state.scene;
+  updateOcrEngineControls();
 }
 function download(blob,name){const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);}
 function showScene(scene){state.scene=validateScene(scene);state.selected=null;state.selection=[];renderScene();}
@@ -172,7 +173,15 @@ function setMode(mode){
   for(const id of ['export-svg','export-pptx','export-json'])$('#'+id).hidden=mode==='raster';
   $('.edit-tools').hidden=mode==='raster';if(mode==='raster'){$('#layer-editor').hidden=true;showRasterPreview();}else if(state.scene)renderScene();else{$('#raster-preview').hidden=true;$('#result-empty').hidden=false;}
   $('#convert').innerHTML=icon('spark')+(mode==='ocr'?'Recognize text':mode==='ai'?'Rebuild diagram':'Trace image')+icon('arrow');
-  $('#mode-note').textContent=mode==='ocr'?'OCR reads text before tracing. Review the words, then rebuild: clean editable SVG/PPTX text over vector artwork. A small LSTM engine and selected language data load from jsDelivr after permission; your image stays local. Fonts/placement are approximate. Formulas and handwriting are not guaranteed.':mode==='trace'?'Outline-only tracing. Letters remain paths. Choose Text + vectors to recognize words as editable text before tracing the artwork.':mode==='ai'?'AI reconstruction can change labels or geometry. Compare against your original. Requires your vision provider, or import Scene JSON from your own AI chat.':'PNG preserves transparency. JPEG uses your selected background. WebP quality and format availability depend on your browser. Animated inputs export a single decoded frame.';
+  $('#mode-note').textContent=mode==='ocr'?'':mode==='trace'?'Outline-only tracing. Letters remain paths. Choose Text + vectors to recognize words as editable text before tracing the artwork.':mode==='ai'?'AI reconstruction can change labels or geometry. Compare against your original. Requires your vision provider, or import Scene JSON from your own AI chat.':'PNG preserves transparency. JPEG uses your selected background. WebP quality and format availability depend on your browser. Animated inputs export a single decoded frame.';
+  updateOcrEngineControls();
+}
+function updateOcrEngineControls(){
+  const local=$('#ocr-engine').value==='paddle';
+  $('#ocr-layout').disabled=state.busy||local;$('#ocr-layout').title=local?'Browser segmentation is not used by local PaddleOCR.':'Segmentation for browser OCR.';
+  $('#ocr-language').parentElement.firstChild.textContent=local?'Browser re-read language':'Language';
+  $('#ocr-download-consent').parentElement.lastChild.textContent=local?'Allow browser re-read download · no image upload':'Allow browser OCR download · no image upload';
+  if(state.mode==='ocr')$('#mode-note').textContent='OCR assists SVG reconstruction: review labels, protect artwork, then build native text + vector paths. '+(local?'Recognition uses your authorized local Python PaddleOCR service, not a hosted model. Browser layout settings do not apply; Re-read label uses browser Tesseract with separate download consent.':'Tesseract runs in your browser after download consent. Worker/language assets are served by this site; the pinned core loads from jsDelivr. Your image is not uploaded.')+' Fonts/placement are approximate; formulas and handwriting are not guaranteed.';
 }
 function traceCanvas(canvas){return new Promise((resolve,reject)=>{
   const worker=new Worker(new URL('./trace.worker.js',import.meta.url),{type:'module'});state.worker=worker;
@@ -284,6 +293,7 @@ $('#ocr-words').onclick=e=>{
 };
 $('#ocr-review-export').onclick=()=>{if(!state.ocr)return;download(new Blob([JSON.stringify(reviewData(state.ocr.words,state.ocr.canvas.width,state.ocr.canvas.height,state.ocr.language,state.ocr.engine),null,2)],{type:'application/json'}),outputName(state.file.name,'ocr-review.json'));};
 $('#paddle-settings').onclick=()=>$('#paddle-dialog').showModal();
+$('#ocr-engine').onchange=updateOcrEngineControls;
 $('#paddle-clear').onclick=()=>{$('#paddle-token').value='';$('#paddle-consent').checked=false;};
 $('#paddle-json').onclick=()=>{if(!state.source||state.busy)return;if(!$('#paddle-source-confirmed').checked){status('Confirm that the JSON belongs to this same unmodified source image.',true);return;}$('#paddle-json-input').click();};
 $('#paddle-json-input').onchange=async e=>{

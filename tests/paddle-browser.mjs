@@ -21,7 +21,9 @@ try{
   await send('Browser.setDownloadBehavior',{behavior:'allow',downloadPath:dir});await send('Page.enable');await send('Page.navigate',{url});await wait(`document.readyState==='complete'`);
   await evaluate(`new Promise(resolve=>{const c=document.createElement('canvas');c.width=300;c.height=150;const ctx=c.getContext('2d');ctx.fillStyle='white';ctx.fillRect(0,0,300,150);ctx.font='20px Times New Roman';ctx.fillStyle='black';ctx.fillText('Model',50,65);ctx.fillStyle='#6056d9';ctx.fillRect(180,40,80,45);c.toBlob(blob=>{const dt=new DataTransfer();dt.items.add(new File([blob],'paddle-test.png',{type:'image/png'}));const input=document.querySelector('#file-input');input.files=dt.files;input.dispatchEvent(new Event('change',{bubbles:true}));resolve();});})`);
   await wait(`document.querySelector('#source-meta').textContent.includes('paddle-test.png')`);
-  await evaluate(`document.querySelector('[data-mode="ocr"]').click();document.querySelector('#ocr-engine').value='paddle';document.querySelector('#convert').click()`);
+  await evaluate(`document.querySelector('[data-mode="ocr"]').click();document.querySelector('#ocr-engine').value='paddle';document.querySelector('#ocr-engine').dispatchEvent(new Event('change',{bubbles:true}));document.querySelector('#convert').click()`);
+  assert.match(await evaluate(`document.querySelector('#mode-note').textContent`),/local Python/i,'Mode description must match the selected engine');
+  assert.equal(await evaluate(`document.querySelector('#ocr-layout').disabled`),true,'Browser-only segmentation cannot configure Paddle');
   assert.equal(await evaluate(`document.querySelector('#paddle-dialog').open`),true,'No service request without explicit settings/consent');
   await evaluate(`document.querySelector('#paddle-endpoint').value='http://127.0.0.1:${localPort}';document.querySelector('#paddle-token').value='${'a'.repeat(43)}';document.querySelector('#paddle-consent').checked=true;document.querySelector('#paddle-dialog').close();document.querySelector('#convert').click()`);
   await wait(`document.querySelector('#status').textContent.includes('PaddleOCR labels loaded')`);
