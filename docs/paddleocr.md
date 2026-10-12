@@ -23,7 +23,7 @@ python scripts/paddle_service.py \
 
 The service prints a fresh session token. In **Text + vectors → Local Paddle settings**, paste the loopback URL and token, authorize sending the working PNG to that local service, select **Local PaddleOCR**, and click Recognize. Check the labels, explicitly select safe replacements, then **Build with reviewed text**. SVG/PPTX text defaults to Times New Roman. Token stays in tab memory; Clear session removes it, and restarting Python invalidates it.
 
-Browser local-network restrictions may require permission or block HTTPS-page → HTTP-loopback requests. If blocked, use the local site preview or JSON import; the app does not fall back to an external endpoint. This behavior has not been verified in every browser. Requests stop after three minutes, but aborting a browser request **does not terminate already running Python inference**. The service processes one request at a time and is not a production/multi-user server.
+Browser local-network restrictions may require permission or block HTTPS-page → HTTP-loopback requests. [Chrome documents this permission boundary](https://developer.chrome.com/blog/local-network-access?hl=en). On the public website, our owned Chrome 154 test was blocked without loopback permission; explicitly granting it in that test browser allowed the same HTTP → reviewed SVG workflow to pass. The recognizer was injected, not a real Paddle model. The app does not grant permissions, disable browser checks or fall back to an external endpoint. If blocked, allow the browser's local-network permission only if intended, use the local preview, or import JSON. Other browsers remain unverified. Requests stop after three minutes, but aborting a browser request **does not terminate already running Python inference**. The service processes one request at a time and is not a production/multi-user server.
 
 ## Offline JSON route
 
@@ -49,3 +49,5 @@ node tests/paddle-browser.mjs http://127.0.0.1:4178/Image2Other/ 9228
 ```
 
 The browser check needs the built preview and an owned Chrome DevTools session on the given port. These tests verify integration, not recognition accuracy or model compatibility. Model tiers are candidates for a future matched-budget comparison on verified scientific figures; none is claimed to be universally best.
+
+For public-origin transport QA only, the browser test accepts an explicit `--allow-loopback` argument. It mirrors granting loopback permission **only in the owned test browser**; it is not used by the application or by ordinary local CI tests. Never point these automation checks at a user's regular browser session.

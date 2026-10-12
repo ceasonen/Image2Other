@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import {spawn} from 'node:child_process';
-const [url='http://127.0.0.1:4178/Image2Other/',port='9228']=process.argv.slice(2);
+const [url='http://127.0.0.1:4178/Image2Other/',port='9228',permission='']=process.argv.slice(2);
 const result={page_index:null,model_settings:{use_doc_preprocessor:false,use_textline_orientation:false},rec_texts:['Model'],rec_scores:[.97],rec_polys:[[[49,44],[112,44],[112,69],[49,69]]]};
 const python=spawn('python3',['-u','-c',`import sys;sys.path.insert(0,'scripts');from paddle_service import make_server;result=${JSON.stringify(result).replaceAll('null','None').replaceAll('false','False')};server=make_server(0,'${'a'.repeat(43)}',lambda raw:result);print(server.server_port,flush=True);server.serve_forever()`],{stdio:['ignore','pipe','pipe']});
 let ws;
@@ -13,6 +13,8 @@ try{
   await new Promise(resolve=>ws.addEventListener('open',resolve,{once:true}));let id=0;const pending=new Map();
   ws.addEventListener('message',e=>{const r=JSON.parse(e.data);if(r.id){pending.get(r.id)?.(r);pending.delete(r.id);}});
   const send=(method,params={})=>new Promise((resolve,reject)=>{const n=++id;pending.set(n,r=>r.error?reject(Error(r.error.message)):resolve(r.result));ws.send(JSON.stringify({id:n,method,params}));});
+  // Explicit opt-in for an OWNED test browser only, mirroring the user's permission choice.
+  if(permission==='--allow-loopback')await send('Browser.grantPermissions',{origin:new URL(url).origin,permissions:['loopbackNetwork']});
   const evaluate=async expression=>{const r=await send('Runtime.evaluate',{expression,awaitPromise:true,returnByValue:true});if(r.exceptionDetails)throw Error(JSON.stringify(r.exceptionDetails));return r.result.value;};
   const wait=expression=>evaluate(`new Promise((resolve,reject)=>{const start=performance.now();const poll=()=>{if(${expression})return resolve();if(performance.now()-start>30000)return reject(Error(document.querySelector('#status').textContent));setTimeout(poll,80);};poll();})`);
   await fs.mkdir('.build/downloads',{recursive:true});const dir=await fs.mkdtemp(path.resolve('.build/downloads/paddle-'));
