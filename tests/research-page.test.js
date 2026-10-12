@@ -10,9 +10,11 @@ const readme = readFileSync(new URL('../README.md', import.meta.url), 'utf8');
 test('research project page is published with the browser studio', () => {
   assert.ok(existsSync(path), 'Missing public/research/index.html');
   const html = readFileSync(path, 'utf8');
-  assert.match(html, /Scientific figures should remain/);
+  assert.match(html, /Edit-Preserving Reconstruction of <em>Scientific Figures<\/em>/);
   assert.match(html, /Image2Other/);
   assert.match(html, /Research prototype/);
+  assert.match(html, /Working title/);
+  assert.match(html, /<h2 id="abstract-title">Abstract<\/h2>/);
   assert.doesNotMatch(html, /Nerfies: Deformable Neural Radiance Fields/);
   assert.ok(existsSync(new URL('../public/research/static/css/site.css', import.meta.url)));
   assert.ok(existsSync(new URL('../public/research/static/images/studio.png', import.meta.url)));
