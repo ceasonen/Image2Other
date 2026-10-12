@@ -1,6 +1,6 @@
 # Image2Other
 
-把图片变成方便继续修改的文件。独立项目主页：<https://ceasonen.github.io/Image2Other/>。
+把图片变成方便继续修改的文件。[在线转换器](https://ceasonen.github.io/Image2Other/) · [科研项目展示页](https://huggingface.co/spaces/alexchenc10/Image2Other)。
 
 主线是 **图片 → 可编辑 SVG 图形与文字 → 修改 → 导出**。OCR 只辅助文字层，不替代图形重建、组件组合与连接关系恢复。
 
@@ -24,7 +24,7 @@
 
 **Export experiment ZIP** 由用户手动触发，本地保存工作分辨率原图、渲染图、差异图、初始/最终 Scene JSON 和每次尝试的记录，上限 12 MB。记录标注为 `unverified`，文字、连接、编辑行为及素材使用权仍需单独核对；这些输出不能直接作为经过验证的训练集或独立测试集。网页不会自动收集或上传图片。
 
-新增可选的 **本机 PaddleOCR Python 服务**与 **PaddleOCR JSON 导入**，继续复用同一套文字核对、保护图形、描摹与 SVG 导出流程，不转向单独的 OCR 产品。服务只绑定回环地址，需要会话令牌和明确授权；需已有依赖和本地模型，不自动安装或下载。识别结果默认不选中，旋转文字及预处理后的坐标暂不接受。[配置与验证边界](paddleocr.md)。目前已验证接口/UI，**没有运行真实 Paddle 模型或证明准确率提升**；Re-read label 仍使用浏览器 Tesseract。
+新增可选的 **本机 PaddleOCR Python 服务**与 **PaddleOCR JSON 导入**，继续复用同一套文字核对、保护图形、描摹与 SVG 导出流程，不转向单独的 OCR 产品。服务只绑定回环地址，需要会话令牌和明确授权；需单独配置依赖和本地模型，网页不会自动安装或下载。识别结果默认不选中，明显旋转文字及预处理后的坐标暂不接受。[配置与验证边界](paddleocr.md)。PP-OCRv5 mobile 已在一台 Apple Silicon Mac 上完成真实模型识别与 HTTP 接口冒烟测试，**这不等于证明科研图识别精度提升**；Re-read label 仍使用浏览器 Tesseract。
 
 ## 本地启动
 

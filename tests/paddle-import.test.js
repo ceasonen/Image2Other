@@ -16,3 +16,9 @@ test('Paddle import rejects transformed coordinates, mismatched arrays, rotated 
   for(const bad of [{...result,model_settings:{use_doc_preprocessor:true}},{...result,rec_scores:[]},{...result,rec_scores:[NaN]},{...result,rec_scores:[1.1]},{...result,rec_polys:[[[0,0],[20,5],[20,20],[0,15]]]},{...result,rec_polys:[[[0,0],[250,0],[250,20],[0,20]]]},{...result,rec_texts:['x'.repeat(501)]},{...result,page_index:1}])assert.throws(()=>read(bad));
   assert.throws(()=>read({...result,rec_texts:Array(501).fill('A'),rec_scores:Array(501).fill(.9),rec_polys:Array(501).fill(result.rec_polys[0])}));
 });
+test('Paddle import accepts near-horizontal polygons emitted by a real mobile detector',()=>{
+  const nearHorizontal={...result,rec_texts:['Figure 1: Editable SVG'],rec_polys:[[[31,43],[489,38],[489,90],[32,95]]]};
+  const words=api.paddleWords(nearHorizontal,900,280,{width:900,height:280,confirmed:true});
+  assert.equal(words[0].text,'Figure 1: Editable SVG');
+  assert.deepEqual(words[0].box,{x:31,y:38,width:458,height:57});
+});

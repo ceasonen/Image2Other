@@ -6,7 +6,7 @@ A local-first conversion studio for research figures, PDFs, slides and everyday 
 
 The primary workflow is **image → editable SVG artwork + text → edit → export**. OCR assists the text layer; it is not the final product or a substitute for recovering meaningful figure structure.
 
-[Open the studio](https://ceasonen.github.io/Image2Other/) · [中文说明](docs/README.zh-CN.md) · [Research & credits](docs/research.md) · [Report an issue](https://github.com/ceasonen/Image2Other/issues)
+[Open the studio](https://ceasonen.github.io/Image2Other/) · [Research project page](https://huggingface.co/spaces/alexchenc10/Image2Other) · [中文说明](docs/README.zh-CN.md) · [Research & credits](docs/research.md) · [Report an issue](https://github.com/ceasonen/Image2Other/issues)
 
 ![Image2Other studio showing an actual local raster-to-path conversion](docs/images/studio.png)
 
@@ -61,7 +61,7 @@ The figure workspace now automatically renders generated SVGs back to pixels and
 
 The user-initiated ZIP export stays local and is capped at 12 MB. Its `feedback.json` includes attempted and accepted moves, working/source sizes and an explicit `annotationStatus: unverified`; text, connection, edit behavior and source-license checks are left null. The included `reference.png` is a scaled working raster, not necessarily the full-resolution input. Pairing these files may help build a development corpus after independently checking rights and structural labels. No files or corrections are collected automatically, and the archive is **not** a verified training dataset or an independent test set. See the [evaluation plan](docs/development-contract.md).
 
-**Local PaddleOCR** is an optional Python bridge, not a hosted model. Configure an existing local inference environment/model pair, paste its session token, explicitly allow the loopback request, and select Local PaddleOCR. Alternatively import PaddleOCR 3.x JSON from the same unmodified source. Imported/local labels use the same review → protected masking → traced artwork + native text → SVG/PPTX pipeline and start unselected. Rotated/preprocessed coordinates are refused. [Setup, supported models and current verification limits](docs/paddleocr.md). No Paddle packages or weights are installed automatically. Re-read label currently uses browser Tesseract, including on imported labels.
+**Local PaddleOCR** is an optional Python bridge, not a hosted model. Set up an isolated local inference environment/model pair, paste its session token, explicitly allow the loopback request, and select Local PaddleOCR. Alternatively import PaddleOCR 3.x JSON from the same unmodified source. Imported/local labels use the same review → protected masking → traced artwork + native text → SVG/PPTX pipeline and start unselected. Clearly rotated/preprocessed coordinates are refused. [Setup, supported models and verification limits](docs/paddleocr.md). A PP-OCRv5 mobile pair has passed a small real-model smoke test on Apple Silicon; this is not an accuracy benchmark. No Paddle packages or weights are installed by the web app. Re-read label currently uses browser Tesseract, including on imported labels.
 
 ### OCR behavior and limits
 
@@ -116,7 +116,7 @@ Vite's base path is `/Image2Other/`. Change it in `vite.config.js` if you fork t
 
 The [shared engineering/research contract](docs/development-contract.md) defines acceptance criteria and the next controlled experiments. The small masking diagnostic deliberately exposes both improvements and remaining failures; it does not claim end-to-end accuracy. Reliable text reconstruction comes before adding more conversion buttons.
 
-Next work includes evaluating stronger OCR engines (e.g. PaddleOCR), learning/calibrating replacement decisions on annotated figures, Office rendering through an opt-in local service and complex-artwork preservation. These are not implemented. XGBoost is a possible lightweight confidence/region gate once annotations exist, not an OCR recognizer. Contributions should include licensed examples, expected elements and actual output.
+Next work includes evaluating PaddleOCR on licensed scientific-figure examples, learning/calibrating replacement decisions on annotated figures, Office rendering through an opt-in local service and complex-artwork preservation. These are not implemented. XGBoost is a possible lightweight confidence/region gate once annotations exist, not an OCR recognizer. Contributions should include licensed examples, expected elements and actual output.
 
 This is an early usable release, not a claim of better accuracy than existing systems. Our [research map](docs/research.md) separates published methods, engineering references, and actual integrations. VectorHarness directly overlaps relation-preserving reconstruction and local repair; those capabilities alone are not a new contribution. Lightweight selective edit-response recovery remains a candidate requiring evidence. Source-only reference checkouts and a pre-experimental draft stay in an ignored local research directory; no weights or large datasets were downloaded.
 
