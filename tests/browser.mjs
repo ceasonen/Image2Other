@@ -26,6 +26,8 @@ try{
   assert.equal(await evaluate(`document.querySelector('#source-image').naturalWidth>0`),true);
   await evaluate(`document.querySelector('[data-mode="trace"]').click();document.querySelector('#convert').click()`);
   await wait(`document.querySelector('#status').textContent.includes('paths ready')`);
+  assert.equal(await evaluate(`document.querySelector('#feedback-mae').dataset.value!==''&&Number.isFinite(Number(document.querySelector('#feedback-mae').dataset.value))`),true,'Generated trace is rendered and compared with its source');
+  assert.equal(await evaluate(`!document.querySelector('#feedback').hidden`),true);
   assert.equal(await evaluate(`document.querySelectorAll('#result-svg path[data-node-id]').length>0`),true);
   assert.equal(await evaluate(`document.querySelectorAll('#result-svg image').length`),0);
   assert.equal(await evaluate(`document.querySelector('#export-svg').disabled`),false);

@@ -41,8 +41,9 @@ Open `http://127.0.0.1:5178/Image2Other/`.
 
 1. Drop, browse, or paste an image. Try the included raster diagram if you want a quick example.
 2. In Text + vectors, allow the small OCR download and click Recognize text. Correct words against their source crops. Use Review mask to inspect removal, optionally Suggest protection, then paint/confirm protected artwork before Build with reviewed text. Or choose Vector trace, AI rebuild, or Image formats.
-3. Inspect the complete SVG preview. Open Layers to move real paths/shapes/text, change colors and fonts, or add text. Shift-click layers, or toggle Select multiple, to move selected artwork and labels together. Undo is available.
-4. Download SVG, PPTX, Scene JSON, or a raster image.
+3. Inspect the complete SVG preview and its new difference map. The browser renders the SVG at a bounded working size and compares it with the same source image. Open Layers to move paths/shapes/text, change colors and fonts, or add text.
+4. Select one or several layers and click **Refine selected layers**. A bounded three-step search tests small position changes and accepts a move only when RGB error drops. Undo remains available. Click **Compare again** after a manual edit to start a fresh run.
+5. Download SVG, PPTX, Scene JSON, or a raster image. **Export experiment ZIP** locally packages the comparison raster, rendered raster, difference map, initial/final scenes and trial log.
 
 Text + vectors needs no API key and does not upload images. AI rebuild is an optional alternative for semantic shapes/connectors. [AI setup and scene schema](docs/ai-rebuild.md)
 
@@ -53,6 +54,12 @@ Traced paths have X/Y controls: moving them rewrites actual M/L/Q/C/Z coordinate
 Native line layers have **Start/End target + port** controls. Choose artwork and a bounding-box port manually; moving that artwork updates its attached endpoint, leaving the other target unchanged. Detach before moving a bound line directly. Scene JSON retains stable IDs and constraints; SVG includes endpoint metadata and synchronized geometry. PPTX exports synchronized native lines, **not active Office connection bindings**. A traced arrow is still a path, not automatically a native line; automatic relation recovery and external-editor constraint execution are not implemented.
 
 Figure text defaults to **Times New Roman** in both SVG and native PPTX. The text-layer editor also offers Arial, Calibri and Georgia; Scene JSON retains the choice. Fonts are not embedded, so another device may substitute an unavailable font. This is a requested output style, not recovery of the source font. PDF text-layer conversion remains a separate document workflow.
+
+### Visual feedback and research records
+
+The figure workspace now automatically renders generated SVGs back to pixels and reports RGB mean absolute error plus a difference map against the current source. Comparisons use white compositing and a maximum 1,024-pixel edge / 1,048,576 pixels. A selected group can run three rounds of four axis-aligned shifts (4, 2 and 1 scene pixels), keeping the best lower-error candidate at each round. Text content, colors and connections are not inferred by this search; explicit attachment coordinates follow moved artwork. Existing unrelated scene layers are left unchanged. A lower pixel error is **not** evidence that a label, connector direction or downstream edit is correct.
+
+The user-initiated ZIP export stays local and is capped at 12 MB. Its `feedback.json` includes attempted and accepted moves, working/source sizes and an explicit `annotationStatus: unverified`; text, connection, edit behavior and source-license checks are left null. The included `reference.png` is a scaled working raster, not necessarily the full-resolution input. Pairing these files may help build a development corpus after independently checking rights and structural labels. No files or corrections are collected automatically, and the archive is **not** a verified training dataset or an independent test set. See the [evaluation plan](docs/development-contract.md).
 
 **Local PaddleOCR** is an optional Python bridge, not a hosted model. Configure an existing local inference environment/model pair, paste its session token, explicitly allow the loopback request, and select Local PaddleOCR. Alternatively import PaddleOCR 3.x JSON from the same unmodified source. Imported/local labels use the same review → protected masking → traced artwork + native text → SVG/PPTX pipeline and start unselected. Rotated/preprocessed coordinates are refused. [Setup, supported models and current verification limits](docs/paddleocr.md). No Paddle packages or weights are installed automatically. Re-read label currently uses browser Tesseract, including on imported labels.
 
@@ -79,6 +86,7 @@ The deployment workflow also runs real-browser smoke tests before publishing. To
 
 ```sh
 node tests/browser.mjs http://127.0.0.1:4178/Image2Other/ 9226
+node tests/feedback-browser.mjs http://127.0.0.1:4178/Image2Other/ 9226
 node tests/ocr-browser.mjs http://127.0.0.1:4178/Image2Other/ 9226
 ```
 

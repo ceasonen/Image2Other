@@ -10,13 +10,15 @@ import {MAX_MASK_PIXELS} from './ocr-mask.js';
 import {mountMaskEditor} from './mask-editor.js';
 import {chooseCropCandidate} from './ocr-candidates.js';
 import {mountCropEditor} from './crop-editor.js';
+import {pixelMetrics,refineSelection,feedbackManifest} from './feedback-loop.js';
+import {comparisonSize,referenceCanvas,renderVectorCanvas,canvasPixels,differenceCanvas,feedbackArchive} from './feedback-browser.js';
 
 const icon=(name)=>{
   const paths={upload:'M12 16V4m-4 4 4-4 4 4M4 16v4h16v-4',arrow:'M5 12h14m-5-5 5 5-5 5',image:'M4 4h16v16H4z M4 16l5-5 4 4 3-3 4 4 M8 8h.01',layers:'m12 3 9 5-9 5-9-5 9-5m-9 9 9 5 9-5m-18 5 9 5 9-5',spark:'m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5L12 3',download:'M12 3v12m-4-4 4 4 4-4M4 17v4h16v-4',lock:'M6 10h12v11H6z M8 10V7a4 4 0 0 1 8 0v3',github:'M9 19c-4 1-4-2-6-2m12 5v-4c0-1-.3-2-1-2 3 0 6-2 6-6 0-2-1-3-1-4 0-1 0-2-1-3-2 0-3 1-4 1-2-1-4-1-6 0-1-1-2-1-4-1-1 1-1 2-1 3-1 1-1 2-1 4 0 4 3 6 6 6-1 0-1 1-1 2v4',settings:'M4 7h16M4 17h16M8 4v6M16 14v6',check:'m5 12 4 4L19 6',close:'m6 6 12 12M6 18 18 6',code:'m8 7-5 5 5 5m8-10 5 5-5 5m-3-12-2 14',undo:'M8 4 3 9l5 5M3 9h11a6 6 0 0 1 0 12',plus:'M12 4v16M4 12h16'};
   return `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${paths[name]??paths.image}"/></svg>`;
 };
 const $=selector=>document.querySelector(selector);
-const state={mode:'trace',file:null,source:null,scene:null,selected:null,selection:[],multiSelect:false,busy:false,history:[],originalUrl:null,controller:null,worker:null,ocr:null};
+const state={mode:'trace',file:null,source:null,scene:null,selected:null,selection:[],multiSelect:false,busy:false,history:[],originalUrl:null,controller:null,worker:null,ocr:null,sourceLinked:false,sampleSource:false,feedback:null};
 document.querySelector('#app').innerHTML=`
   <header class="header"><a class="brand" href="./"><span class="brand-mark">${icon('layers')}</span>Image<span>2</span>Other<span class="beta">BETA</span></a><nav aria-label="Main navigation"><a href="#how-it-works">How it works</a><a href="https://ceasonen.github.io/">Cheng Chen</a><a class="github-link" href="https://github.com/ceasonen/Image2Other" target="_blank" rel="noopener">${icon('github')}<span>Star on GitHub</span></a></nav></header>
   <main>
@@ -67,6 +69,7 @@ const cropEditor=mountCropEditor({onRead:async(word,canvas,options)=>{
   state.ocr.words[i]=chooseCropCandidate(word,report,index);renderOcrReview();status('Crop text draft chosen. Check it, then explicitly select Replace if appropriate.');
 }});
 $('#toggle-layers').insertAdjacentHTML('beforebegin','<button class="small-button" id="multi-select" aria-pressed="false" disabled>Select multiple</button>');
+$('.edit-bar').insertAdjacentHTML('beforebegin',`<section id="feedback" class="feedback" hidden aria-labelledby="feedback-title"><div class="feedback-heading"><div><span class="eyebrow">RENDER · COMPARE · REFINE</span><h3 id="feedback-title">See what the SVG kept.</h3><p>Compare the rendered SVG with your source at the same working size. Red marks visible differences; the score is RGB error, not text or connection correctness.</p></div><div class="feedback-actions"><button class="small-button" id="feedback-compare">Compare again</button><button class="primary compact" id="feedback-refine" disabled>Refine selected layers</button><button class="small-button" id="feedback-export" disabled>Export experiment ZIP</button></div></div><div class="feedback-body"><div class="feedback-visual"><canvas id="feedback-heatmap" aria-label="Difference heatmap"></canvas><span>Difference map · red = larger mismatch</span></div><div class="feedback-stats"><div><span>Visual error · lower is better</span><strong id="feedback-mae" data-value="">—</strong><small>Mean absolute RGB error · 0–255</small></div><div><span>Changed pixels</span><strong id="feedback-changed">—</strong><small>Difference above 24/255</small></div><p id="feedback-history">Compare to start a local experiment.</p></div></div><p class="feedback-help">Select one or several layers first. Refinement tries small position shifts, keeps only a lower-error result and preserves manual line attachments. Check labels, arrows and edit behavior yourself. Exported examples are unverified and stay in your browser until you download them.</p><p id="feedback-status" role="status" aria-live="polite"></p></section>`);
 
 const sampleScene={width:800,height:460,background:'#ffffff',engine:'editable-example',nodes:[
   {type:'text',x:52,y:35,width:700,height:40,text:'Complementary information, one model',fontSize:25,bold:true,fill:'#252b40'},
@@ -81,7 +84,8 @@ const sampleScene={width:800,height:460,background:'#ffffff',engine:'editable-ex
   {type:'text',x:55,y:332,width:690,height:36,text:'A small example. Real text and separate shapes.',fontSize:18,align:'center',fill:'#8991a7'}
 ]};
 function status(message,error=false){$('#status').textContent=message;$('#status-indicator').classList.toggle('error',error);}
-function saveHistory(){if(state.scene){state.history.push(JSON.stringify(state.scene));if(state.history.length>30)state.history.shift();}$('#undo').disabled=!state.history.length;}
+function clearFeedback(){state.feedback=null;$('#feedback-mae').textContent='—';$('#feedback-mae').dataset.value='';$('#feedback-changed').textContent='—';$('#feedback-history').textContent='Compare to start a local experiment.';$('#feedback-status').textContent='';$('#feedback-refine').disabled=true;$('#feedback-export').disabled=true;$('#feedback-heatmap').getContext('2d').clearRect(0,0,$('#feedback-heatmap').width,$('#feedback-heatmap').height);}
+function saveHistory(){if(state.scene){state.history.push(JSON.stringify(state.scene));if(state.history.length>30)state.history.shift();}clearFeedback();$('#undo').disabled=!state.history.length;}
 function setBusy(value){state.busy=value;$('#convert').disabled=value||!state.source;$('#convert').classList.toggle('loading',value);$('#cancel').hidden=!value;$('#replace-file').disabled=value;$('#try-sample').disabled=value;
   $('#paddle-json').disabled=value||!state.source;$('#paddle-settings').disabled=value;
   document.querySelectorAll('#ocr-options input,#ocr-options select,#ocr-review input,#ocr-build,#ocr-review-export,[data-mode]').forEach(el=>el.disabled=value);
@@ -89,10 +93,11 @@ function setBusy(value){state.busy=value;$('#convert').disabled=value||!state.so
   for(const el of document.querySelectorAll('[data-ocr-mask]')){const word=state.ocr?.words.find(w=>w.id===el.dataset.ocrMask);el.disabled=value||!word?.safeBackground||word.box.width*word.box.height>MAX_MASK_PIXELS;}
   for(const el of document.querySelectorAll('[data-ocr-reread]')){const word=state.ocr?.words.find(w=>w.id===el.dataset.ocrReread);el.disabled=value||!word||word.box.width*word.box.height>MAX_MASK_PIXELS;}
   for(const id of ['export-svg','export-pptx','export-json','add-text','toggle-layers','multi-select'])$('#'+id).disabled=value||!state.scene;
+  $('#feedback-compare').disabled=value||!state.sourceLinked;$('#feedback-refine').disabled=value||!state.feedback||!state.selection.length;$('#feedback-export').disabled=value||!state.feedback;
   updateOcrEngineControls();
 }
 function download(blob,name){const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);}
-function showScene(scene){state.scene=validateScene(scene);state.selected=null;state.selection=[];renderScene();}
+function showScene(scene,{sourceLinked=false}={}){state.scene=validateScene(scene);state.sourceLinked=sourceLinked;state.selected=null;state.selection=[];clearFeedback();$('#feedback').hidden=!sourceLinked||state.mode==='raster';renderScene();}
 function renderScene(){
   if(!state.scene)return;
   $('#result-empty').hidden=true;$('#raster-preview').hidden=true;$('#result-svg').hidden=false;
@@ -103,6 +108,7 @@ function renderScene(){
   for(const id of ['export-svg','export-pptx','export-json','add-text','toggle-layers','multi-select'])$('#'+id).disabled=false;
   $('#undo').disabled=!state.history.length;
   renderLayers();
+  $('#feedback-refine').disabled=state.busy||!state.feedback||!state.selection.length;
 }
 function renderLayers(){
   $('#layer-list').innerHTML=state.scene.nodes.map(n=>`<button class="layer-item${state.selection.includes(n.id)?' active':''}" aria-pressed="${state.selection.includes(n.id)}" data-layer="${n.id}"><span class="layer-swatch" style="background:${n.fill==='none'?n.stroke:n.fill}"></span><span>${escapeXml(n.name)}</span><small>${n.type}</small></button>`).join('');
@@ -126,12 +132,45 @@ function selectLayer(id,additive=false){
   else state.selection=[id];
   state.selected=state.selection.at(-1)??null;$('#layer-editor').hidden=false;renderScene();
 }
+function paintFeedback(session){
+  const {size,measurement}=session,heat=$('#feedback-heatmap');heat.width=size.width;heat.height=size.height;
+  heat.getContext('2d').putImageData(new ImageData(measurement.heatmap,size.width,size.height),0,0);
+  $('#feedback-mae').textContent=measurement.mae.toFixed(2);$('#feedback-mae').dataset.value=String(measurement.mae);
+  $('#feedback-changed').textContent=(measurement.changedFraction*100).toFixed(1)+'%';
+  $('#feedback-history').textContent=session.history.map((row,i)=>`round ${i} · ${row.mae.toFixed(2)}`).join(' → ');
+  $('#feedback-refine').disabled=state.busy||!state.selection.length;$('#feedback-export').disabled=state.busy;
+}
+async function compareFeedback(){
+  if(!state.sourceLinked||!state.source||!state.scene)throw Error('Generate a scene from this source image first.');
+  const wasBusy=state.busy;if(!wasBusy)setBusy(true);
+  try{
+    const size=comparisonSize(state.scene),reference=referenceCanvas(state.source,size),rendered=await renderVectorCanvas(state.scene,size),measurement=pixelMetrics(canvasPixels(reference),canvasPixels(rendered));
+    const session={size,reference,rendered,measurement,initialScene:structuredClone(state.scene),history:[{mae:measurement.mae,changedFraction:measurement.changedFraction,action:'initial'}],trials:[]};
+    state.feedback=session;paintFeedback(session);$('#feedback-status').textContent='Compared at '+size.width+' × '+size.height+'. Select layers to try a local repair.';
+  }finally{if(!wasBusy)setBusy(false);}
+}
+async function refineFeedback(){
+  if(!state.feedback||!state.selection.length)throw Error('Compare first, then select one or more layers.');
+  const session=state.feedback,ids=[...state.selection],start=state.scene;
+  if(session.trials.length+12>80||session.history.length+1>20)throw Error('Feedback log is full. Export it, then Compare again for a new run.');
+  setBusy(true);state.controller=new AbortController();
+  try{
+    $('#feedback-status').textContent='Testing bounded shifts against the rendered source…';
+    const result=await refineSelection({scene:start,selectedIds:ids,reference:canvasPixels(session.reference),render:async candidate=>canvasPixels(await renderVectorCanvas(candidate,session.size)),signal:state.controller.signal});
+    if(result.accepted.length){saveHistory();state.scene=result.scene;renderScene();}
+    session.trials.push(...result.trials.map(trial=>({...trial,selection:ids})));
+    if(result.accepted.length)session.history.push({mae:result.final.mae,changedFraction:result.final.changedFraction,action:'position-shift',selection:ids,moves:result.accepted});
+    session.rendered=await renderVectorCanvas(state.scene,session.size);session.measurement=pixelMetrics(canvasPixels(session.reference),canvasPixels(session.rendered));state.feedback=session;paintFeedback(session);
+    $('#feedback-status').textContent=result.accepted.length?`Accepted ${result.accepted.length} lower-error move${result.accepted.length===1?'':'s'}. Inspect the text and connections before export.`:'No tested move improved visual error; the scene was kept.';
+  }finally{state.controller=null;setBusy(false);}
+}
 async function svgImage(svg){const blob=new Blob([svg],{type:'image/svg+xml'}),url=URL.createObjectURL(blob);try{const image=new Image();image.src=url;await image.decode();return image;}finally{URL.revokeObjectURL(url);}}
 async function loadSample(){
   if(state.busy)return;
   const image=await svgImage(sceneToSvg(sampleScene));const canvas=document.createElement('canvas');canvas.width=sampleScene.width;canvas.height=sampleScene.height;
   canvas.getContext('2d').drawImage(image,0,0);const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));
   await loadFile(new File([blob],'research-diagram.png',{type:'image/png'}));
+  state.sampleSource=true;
 }
 async function loadFile(file){
   if(state.busy)return;
@@ -146,7 +185,7 @@ async function loadFile(file){
     url=URL.createObjectURL(file);const image=new Image();image.src=url;await image.decode();
     if(image.naturalWidth*image.naturalHeight>24_000_000)throw new Error('This image exceeds 24 megapixels. Resize it first.');
     if(state.originalUrl)URL.revokeObjectURL(state.originalUrl);state.originalUrl=url;state.source=image;state.file=file;
-    state.scene=null;state.history=[];state.selected=null;state.selection=[];state.ocr=null;$('#ocr-review').hidden=true;
+    state.scene=null;state.history=[];state.selected=null;state.selection=[];state.ocr=null;state.sourceLinked=false;state.sampleSource=false;clearFeedback();$('#feedback').hidden=true;$('#ocr-review').hidden=true;
     $('#paddle-source-confirmed').checked=false;
     $('#source-image').src=url;$('#source-image').hidden=false;$('#source-empty').hidden=true;
     $('#result-svg').hidden=true;$('#result-empty').hidden=false;$('#raster-preview').hidden=true;$('#layer-editor').hidden=true;
@@ -172,6 +211,7 @@ function setMode(mode){
   $('#convert').hidden=mode==='raster';$('#export-raster').hidden=mode!=='raster';
   for(const id of ['export-svg','export-pptx','export-json'])$('#'+id).hidden=mode==='raster';
   $('.edit-tools').hidden=mode==='raster';if(mode==='raster'){$('#layer-editor').hidden=true;showRasterPreview();}else if(state.scene)renderScene();else{$('#raster-preview').hidden=true;$('#result-empty').hidden=false;}
+  $('#feedback').hidden=mode==='raster'||!state.sourceLinked;
   $('#convert').innerHTML=icon('spark')+(mode==='ocr'?'Recognize text':mode==='ai'?'Rebuild diagram':'Trace image')+icon('arrow');
   $('#mode-note').textContent=mode==='ocr'?'':mode==='trace'?'Outline-only tracing. Letters remain paths. Choose Text + vectors to recognize words as editable text before tracing the artwork.':mode==='ai'?'AI reconstruction can change labels or geometry. Compare against your original. Requires your vision provider, or import Scene JSON from your own AI chat.':'PNG preserves transparency. JPEG uses your selected background. WebP quality and format availability depend on your browser. Animated inputs export a single decoded frame.';
   updateOcrEngineControls();
@@ -250,7 +290,7 @@ async function buildOcr(){
     const trace=document.createElement('canvas'),factor=Math.min(1,768/Math.max(masked.width,masked.height));trace.width=Math.max(1,Math.round(masked.width*factor));trace.height=Math.max(1,Math.round(masked.height*factor));
     trace.getContext('2d').drawImage(masked,0,0,trace.width,trace.height);
     const scene=appendOcrText(await traceCanvas(trace),state.ocr.words,original.width,original.height);
-    saveHistory();showScene(scene);status(`${scene.nodes.filter(n=>n.type==='text').length} editable text labels + vector artwork ready. Check the source before export.`);
+    saveHistory();showScene(scene,{sourceLinked:true});await compareFeedback();status(`${scene.nodes.filter(n=>n.type==='text').length} editable text labels + vector artwork ready. Check the source before export.`);
   }catch(error){status(error.message,true);}finally{state.cancelTrace=null;setBusy(false);}
 }
 async function convert(){
@@ -269,7 +309,7 @@ async function convert(){
     }else{
       scene=await traceCanvas(canvas);
     }
-    saveHistory();showScene(scene);status(scene.engine==='local-trace'?`${scene.nodes.length} vector paths ready. Download or edit layers.`:`${scene.nodes.length} reconstructed layers ready. Check labels and layout.`);
+    saveHistory();showScene(scene,{sourceLinked:true});await compareFeedback();status(scene.engine==='local-trace'?`${scene.nodes.length} vector paths ready. Download or edit layers.`:`${scene.nodes.length} reconstructed layers ready. Check labels and layout.`);
   }catch(error){status(error.name==='AbortError'?'AI request cancelled or timed out.':error.message,true);}finally{state.cancelTrace=null;setBusy(false);}
 }
 
@@ -281,9 +321,20 @@ $('#dropzone').ondragover=e=>{e.preventDefault();$('#dropzone').classList.add('d
 $('#dropzone').ondrop=e=>{e.preventDefault();$('#dropzone').classList.remove('drag-over');loadFile(e.dataTransfer.files[0]);};
 document.addEventListener('paste',e=>{if(['INPUT','TEXTAREA'].includes(document.activeElement.tagName))return;const image=[...e.clipboardData.items].find(item=>item.type.startsWith('image/'));if(image)loadFile(image.getAsFile());});
 $('#try-sample').onclick=()=>loadSample().catch(error=>status(error.message,true));
-$('#open-example').onclick=()=>{saveHistory();showScene(sampleScene);status('Editable example ready. This is an authored scene, not an automatic reconstruction.');};
+$('#open-example').onclick=async()=>{saveHistory();showScene(sampleScene,{sourceLinked:state.sampleSource});if(state.sourceLinked)try{await compareFeedback();}catch(error){status(error.message,true);return;}status('Editable example ready. This is an authored scene, not an automatic reconstruction.');};
 $('#convert').onclick=convert;$('#cancel').onclick=()=>{state.controller?.abort();state.cancelTrace?.();};
 $('#ocr-build').onclick=buildOcr;
+$('#feedback-compare').onclick=async()=>{try{await compareFeedback();}catch(error){$('#feedback-status').textContent=error.message;status(error.message,true);}};
+$('#feedback-refine').onclick=async()=>{try{await refineFeedback();}catch(error){$('#feedback-status').textContent=error.name==='AbortError'?'Local refinement stopped.':error.message;status(error.message,true);}};
+$('#feedback-export').onclick=async()=>{
+  const session=state.feedback;if(!session||state.busy)return;setBusy(true);
+  try{
+    const manifest=feedbackManifest({scene:state.scene,sourceName:state.file?.name,originalWidth:state.source.naturalWidth,originalHeight:state.source.naturalHeight,comparisonWidth:session.size.width,comparisonHeight:session.size.height,history:session.history,trials:session.trials});
+    const difference=differenceCanvas(session.measurement,session.size);
+    const blob=await feedbackArchive({reference:session.reference,rendered:session.rendered,difference,initialScene:session.initialScene,finalScene:state.scene,manifest});
+    download(blob,outputName(state.file.name,'feedback.zip'));$('#feedback-status').textContent='Local experiment archive downloaded. Text and connection checks remain unverified.';
+  }catch(error){$('#feedback-status').textContent=error.message;status(error.message,true);}finally{setBusy(false);}
+};
 $('#ocr-words').oninput=e=>{const w=state.ocr?.words.find(w=>w.id===e.target.dataset.ocrText);if(w)w.text=e.target.value;};
 $('#ocr-words').onchange=e=>{const w=state.ocr?.words.find(w=>w.id===e.target.dataset.ocrSelect);if(w&&canReplaceWord(w))w.selected=e.target.checked;};
 $('#ocr-words').onclick=e=>{
@@ -331,7 +382,7 @@ $('#inspector').onchange=e=>{
 };
 $('#inspector').onclick=e=>{if(e.target.closest('#delete-layer')){const next=removeLayers(state.scene,state.selection);saveHistory();state.scene=next;state.selected=null;state.selection=[];renderScene();status('Selected layers removed; affected endpoints detached. Undo is available.');}};
 $('#add-text').onclick=()=>{saveHistory();state.scene.nodes.push({type:'text',name:'New label',x:30,y:30,width:state.scene.width/2,height:45,text:'Your label',fontSize:24,fill:'#222222'});state.scene=validateScene(state.scene);state.selected=state.scene.nodes.at(-1).id;state.selection=[state.selected];$('#layer-editor').hidden=false;renderScene();};
-$('#undo').onclick=()=>{if(state.history.length){showScene(JSON.parse(state.history.pop()));status('Previous edit restored.');}};
+$('#undo').onclick=()=>{if(state.history.length){showScene(JSON.parse(state.history.pop()),{sourceLinked:state.sourceLinked});status('Previous edit restored. Compare again to start a fresh run.');}};
 $('#export-svg').onclick=()=>{download(new Blob([sceneToSvg(state.scene)],{type:'image/svg+xml'}),outputName(state.file?.name??'editable-example','svg'));status('SVG downloaded with editable vector elements.');};
 $('#export-json').onclick=()=>{download(new Blob([JSON.stringify(state.scene,null,2)],{type:'application/json'}),outputName(state.file?.name??'editable-example','json'));status('Scene JSON downloaded. Reimport it to continue editing.');};
 $('#export-pptx').onclick=async()=>{const button=$('#export-pptx');button.disabled=true;try{status('Building native PowerPoint objects…');const {exportPptx}=await import('./export.js');download(await exportPptx(state.scene),outputName(state.file?.name??'editable-example','pptx'));status('PPTX downloaded with native editable objects.');}catch(error){status(error.message,true);}finally{button.disabled=false;}};
