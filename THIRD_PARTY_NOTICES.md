@@ -15,4 +15,4 @@ Full license texts are shipped under `public/licenses/`, including [pdf-lib](pub
 
 The included diagram and UI artwork are original authored examples; they contain no third-party paper figures or confidential manuscripts.
 
-- **Creative by Start Bootstrap**. [Template source](https://github.com/StartBootstrap/startbootstrap-creative). MIT. The landing, navigation, and service sections adapt Creative. The upstream [license](public/templates/creative/LICENSE.txt) is shipped with the template stylesheet.
+- **Creative by Start Bootstrap**. [Template source](https://github.com/StartBootstrap/startbootstrap-creative). MIT. The landing, navigation, and service sections adapt Creative. The upstream [license](public/templates/creative/LICENSE.txt) is shipped alongside Creative’s stylesheet and original masthead image.

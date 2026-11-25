@@ -7,7 +7,7 @@ main.conversion-workspace{max-width:1280px;margin:auto;padding:0 28px}
 #mainNav{min-height:58px}
 #mainNav .navbar-brand,#mainNav .nav-link{font-family:"DM Sans",system-ui,sans-serif}
 #mainNav .navbar-nav .nav-item .nav-link{font-size:14px}
-header.masthead{height:auto;min-height:0;padding:clamp(4rem,8vw,8rem) 0;background:radial-gradient(ellipse at 81% 15%,#83588f 0,transparent 55%),linear-gradient(117deg,#201b39,#524080)}
+header.masthead{height:auto;min-height:0;padding:clamp(4rem,8vw,8rem) 0;background:linear-gradient(112deg,#2a2038df,#664458cb),url("/templates/creative/images/bg-masthead.jpg") center/cover}
 header.masthead h1{font-family:"Fraunces",Georgia,serif;font-weight:500;font-size:clamp(2.8rem,6.5vw,6rem);letter-spacing:-.055em;line-height:.99;text-wrap:balance}
 header.masthead h1 em{font-weight:500;color:#f8c9df}
 hr.divider{background:#f7a88e}
