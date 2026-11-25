@@ -36,14 +36,14 @@ document.querySelector('#app').innerHTML=`
     <div class="container px-4 px-lg-5 h-100">
       <div class="row gx-4 gx-lg-5 h-100 align-items-center justify-content-center text-center">
         <div class="col-lg-9 align-self-end">
-          <h1 class="text-white">Your images, <em>editable again.</em></h1>
+          <h1 class="text-white">Image2Other</h1>
           <hr class="divider">
         </div>
         <div class="col-lg-8 align-self-baseline">
-          <p class="masthead-lead mb-4">Convert research figures to editable SVG and PowerPoint, or work with images and PDFs directly in your browser.</p>
+          <p class="masthead-lead mb-4">Turn a PNG into editable SVG or PowerPoint. Convert images and work with PDFs in your browser.</p>
           <div class="masthead-actions d-flex flex-wrap justify-content-center gap-2">
             <button type="button" class="btn btn-primary btn-xl" id="hero-upload">${icon('upload')} Open an image</button>
-            <button type="button" class="btn btn-outline-light btn-xl" id="try-sample">Try a sample diagram</button>
+            <button type="button" class="btn btn-outline-light btn-xl" id="try-sample">Try a sample</button>
           </div>
         </div>
       </div>
