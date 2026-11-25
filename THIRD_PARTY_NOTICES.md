@@ -14,3 +14,5 @@ Image2Other's original application, scene schema, editor, and adapters are MIT l
 Full license texts are shipped under `public/licenses/`, including [pdf-lib](public/licenses/pdf-lib.txt) and [PDF.js](public/licenses/pdfjs.txt), as well as their vendored source directories. Transitive dependencies retain their own licenses. Academic references in `docs/research.md` are conceptual acknowledgements: source-only checkouts were inspected privately, but their code is not integrated into this app. We did not download their weights, reproduce experiments, or claim equivalent performance.
 
 The included diagram and UI artwork are original authored examples; they contain no third-party paper figures or confidential manuscripts.
+
+- **Creative by Start Bootstrap**. [Template source](https://github.com/StartBootstrap/startbootstrap-creative). MIT. The landing, navigation, and service sections adapt Creative. The upstream [license](public/templates/creative/LICENSE.txt) is shipped with the template stylesheet.

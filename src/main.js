@@ -20,22 +20,63 @@ const icon=(name)=>{
 const $=selector=>document.querySelector(selector);
 const state={mode:'trace',file:null,source:null,scene:null,selected:null,selection:[],multiSelect:false,busy:false,history:[],originalUrl:null,controller:null,worker:null,ocr:null,sourceLinked:false,sampleSource:false,feedback:null};
 document.querySelector('#app').innerHTML=`
-  <header class="header"><a class="brand" href="./"><span class="brand-mark">${icon('layers')}</span>Image<span>2</span>Other<span class="beta">BETA</span></a><nav aria-label="Main navigation"><a href="#how-it-works">How it works</a><a href="https://ceasonen.github.io/">Cheng Chen</a><a class="github-link" href="https://github.com/ceasonen/Image2Other" target="_blank" rel="noopener">${icon('github')}<span>Star on GitHub</span></a></nav></header>
-  <main>
-    <section class="hero"><div class="hero-copy"><div class="eyebrow"><span class="live-dot"></span> THE IMAGE CONVERSION STUDIO</div><h1>Your images.<br><em>Editable again.</em></h1><p>Give your research figures a second life.<br>Turn pixels into vector paths, editable slides, or a better-fitting format.</p><div class="hero-actions"><button class="primary" id="hero-upload">${icon('upload')}Open an image</button><button class="text-button" id="try-sample">Try a diagram ${icon('arrow')}</button></div><div class="privacy-line">${icon('lock')}Local conversion. No account. No automatic uploads.</div></div>
-    <div class="hero-art" aria-label="Illustration of turning a flat diagram into editable layers"><div class="art-label"><span class="file-chip">figure.png</span><span class="art-arrow">${icon('arrow')}</span><span class="file-chip file-chip-green">editable.svg</span></div><div class="art-canvas"><div class="art-line line-one"></div><div class="art-line line-two"></div><div class="art-block block-input"><span class="block-icon">◈</span>Input</div><div class="art-block block-model"><div class="handles"></div>${icon('layers')}Model<span class="selection-label">shape · editable</span></div><div class="art-block block-output"><span class="block-icon">✧</span>Output</div><span class="art-caption">Every element has a next chapter.</span><span class="cursor">↖ <span>You</span></span></div><div class="art-bottom"><span><span class="mini-dot"></span>Shapes & paths</span><span><span class="mini-dot lilac"></span>Live text with AI rebuild</span></div></div></section>
-    <section class="studio" id="studio" aria-labelledby="studio-title"><div class="studio-heading"><div><div class="eyebrow">WORKSPACE</div><h2 id="studio-title">A little less redrawing.</h2></div><span class="session-label">${icon('lock')}Private by default</span></div>
+  <!-- Masthead and service sections adapted from Start Bootstrap Creative (MIT). -->
+  <nav class="navbar navbar-expand navbar-light sticky-top navbar-shrink" id="mainNav" aria-label="Main navigation">
+    <div class="container px-3 px-lg-5">
+      <a class="navbar-brand" href="./">Image2Other</a>
+      <ul class="navbar-nav ms-auto">
+        <li class="nav-item"><a class="nav-link" href="#studio">Studio</a></li>
+        <li class="nav-item"><a class="nav-link" href="#files">PDF &amp; PPTX</a></li>
+        <li class="nav-item d-none d-sm-block"><a class="nav-link" href="/Image2Other/research/">Research</a></li>
+        <li class="nav-item"><a class="nav-link" href="https://github.com/ceasonen/Image2Other">GitHub</a></li>
+      </ul>
+    </div>
+  </nav>
+  <header class="masthead">
+    <div class="container px-4 px-lg-5 h-100">
+      <div class="row gx-4 gx-lg-5 h-100 align-items-center justify-content-center text-center">
+        <div class="col-lg-9 align-self-end">
+          <h1 class="text-white">Your images, <em>editable again.</em></h1>
+          <hr class="divider">
+        </div>
+        <div class="col-lg-8 align-self-baseline">
+          <p class="masthead-lead mb-4">Convert research figures to editable SVG and PowerPoint, or work with images and PDFs directly in your browser.</p>
+          <div class="masthead-actions d-flex flex-wrap justify-content-center gap-2">
+            <button type="button" class="btn btn-primary btn-xl" id="hero-upload">${icon('upload')} Open an image</button>
+            <button type="button" class="btn btn-outline-light btn-xl" id="try-sample">Try a sample diagram</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+  <main class="conversion-workspace">
+    <section class="studio" id="studio" aria-labelledby="studio-title"><div class="studio-heading"><div><h2 id="studio-title">Conversion Studio</h2></div><span class="session-label">${icon('lock')}Private by default</span></div>
     <div class="studio-shell"><div class="mode-bar" role="tablist" aria-label="Conversion mode"><button class="mode active" data-mode="trace" role="tab" aria-selected="true">${icon('layers')}Vector trace<span>LOCAL</span></button><button class="mode" data-mode="ai" role="tab" aria-selected="false">${icon('spark')}AI rebuild<span>OPTIONAL</span></button><button class="mode" data-mode="raster" role="tab" aria-selected="false">${icon('image')}Image formats</button><button class="settings-button" id="settings" title="Configure your AI provider" aria-label="Configure your AI provider">${icon('settings')}</button></div>
       <div class="options-bar"><div id="trace-options"><label>Palette <select id="colors"><option value="8">8 colors</option><option value="16" selected>16 colors</option><option value="32">32 colors</option><option value="64">64 colors</option></select></label><label>Detail <select id="detail"><option value=".5">Fine</option><option value="1" selected>Balanced</option><option value="2">Simple</option></select></label></div><div id="ai-options" hidden><span>${icon('spark')}Recover text, shapes and connectors with your vision model.</span><button class="small-button" id="copy-prompt">Copy prompt</button><button class="small-button" id="import-scene">Import JSON</button></div><div id="raster-options" hidden><label>Format <select id="raster-format"><option value="png">PNG</option><option value="jpeg">JPEG</option><option value="webp">WebP</option></select></label><label>Size <select id="raster-scale"><option value="1">Original</option><option value=".5">50%</option><option value="2">200%</option></select></label><label>Quality <input id="quality" type="range" min="10" max="100" value="92" aria-label="JPEG and WebP quality"/></label><label>Background <input id="raster-bg" type="color" value="#ffffff" aria-label="JPEG background color"/></label></div><button class="run-button" id="convert" disabled>${icon('spark')}Trace image ${icon('arrow')}</button><button id="cancel" class="small-button" hidden>Cancel</button></div>
-      <div class="workbench"><div class="canvas-column"><div class="canvas-top"><span>01 <strong>Source image</strong></span><button class="text-button small" id="replace-file">Replace ${icon('upload')}</button></div><div class="canvas checker dropzone" id="dropzone" tabindex="0" role="button" aria-label="Upload image or drop it here"><div class="empty-state" id="source-empty"><span class="upload-glyph">${icon('upload')}</span><h3>A fresh starting point.</h3><p>Drop your image here<br>or click to browse</p><div class="formats"><span>PNG</span><span>JPG</span><span>WebP</span><span>SVG</span><span>+ more</span></div><small>Up to 20 MB · browser-supported images</small></div><img id="source-image" alt="Original uploaded image" hidden/></div><div class="canvas-bottom" id="source-meta">Your image stays here unless you enable AI rebuild.</div></div>
-      <div class="canvas-column result-column"><div class="canvas-top"><span>02 <strong>Your next format</strong></span><span class="result-type" id="result-type">SVG / PPTX</span></div><div class="canvas checker" id="result-canvas"><div class="empty-state" id="result-empty"><span class="result-glyph">${icon('layers')}</span><h3>Ready for another life.</h3><p>Your conversion will appear here.<br>Preview, refine, then take it with you.</p><button class="small-button" id="open-example">Open an editable example</button></div><div id="result-svg" hidden></div><img id="raster-preview" alt="Image format conversion preview" hidden/></div><div class="canvas-bottom" id="result-meta">Real vector paths. Native PowerPoint objects.</div></div></div>
+      <div class="workbench"><div class="canvas-column"><div class="canvas-top"><span><strong>Source image</strong></span><button class="text-button small" id="replace-file">Replace ${icon('upload')}</button></div><div class="canvas checker dropzone" id="dropzone" tabindex="0" role="button" aria-label="Upload image or drop it here"><div class="empty-state" id="source-empty"><span class="upload-glyph">${icon('upload')}</span><h3>Upload an image</h3><p>Drop your image here<br>or click to browse</p><div class="formats"><span>PNG</span><span>JPG</span><span>WebP</span><span>SVG</span><span>+ more</span></div><small>Up to 20 MB · browser-supported images</small></div><img id="source-image" alt="Original uploaded image" hidden/></div><div class="canvas-bottom" id="source-meta">Your image stays here unless you enable AI rebuild.</div></div>
+      <div class="canvas-column result-column"><div class="canvas-top"><span><strong>Output preview</strong></span><span class="result-type" id="result-type">SVG / PPTX</span></div><div class="canvas checker" id="result-canvas"><div class="empty-state" id="result-empty"><span class="result-glyph">${icon('layers')}</span><h3>Preview your conversion</h3><p>Your conversion will appear here.<br>Preview, refine, then take it with you.</p><button class="small-button" id="open-example">Open an editable example</button></div><div id="result-svg" hidden></div><img id="raster-preview" alt="Image format conversion preview" hidden/></div><div class="canvas-bottom" id="result-meta">Real vector paths. Native PowerPoint objects.</div></div></div>
       <div class="edit-bar"><div class="edit-tools"><button class="small-button" id="undo" disabled>${icon('undo')}Undo</button><button class="small-button" id="add-text" disabled>${icon('plus')}Add text</button><button class="small-button" id="toggle-layers" disabled>${icon('layers')}Layers <span id="layer-count">0</span></button></div><div class="exports"><button class="small-button" id="export-svg" disabled>${icon('download')}SVG</button><button class="small-button" id="export-pptx" disabled>${icon('download')}PPTX</button><button class="small-button" id="export-json" disabled>${icon('code')}Scene JSON</button><button class="primary compact" id="export-raster" hidden disabled>${icon('download')}Download image</button></div></div>
       <div class="layer-editor" id="layer-editor" hidden><div class="layer-list" id="layer-list" aria-label="Editable layers"></div><div id="inspector"><p>Select a layer to adjust its color, text or position.</p></div></div>
-      <div class="status-bar"><span class="status-indicator" id="status-indicator"></span><span id="status" role="status" aria-live="polite">Waiting for an image</span><span class="status-end">Built for the details.</span></div>
+      <div class="status-bar"><span class="status-indicator" id="status-indicator"></span><span id="status" role="status" aria-live="polite">Waiting for an image</span></div>
     </div><p class="mode-note" id="mode-note">Vector trace preserves outlines as editable paths. Letters remain outlines, not editable text. For text boxes and meaningful shapes, use AI rebuild.</p></section>
-    <section id="how-it-works" class="how-section"><div class="how-heading"><div class="eyebrow">ONE STUDIO, DIFFERENT JOBS</div><h2>Choose what you want to keep.</h2><p>A format change and a reconstruction are different things.<br>We make the distinction clear.</p></div><div class="features"><article><span class="feature-icon indigo">${icon('layers')}</span><h3>The outlines.</h3><p>Trace illustrations, icons and flat graphics into separate colored paths. Adjust layers and export SVG or native PPTX. All in your browser.</p><span class="feature-caption">No API key needed</span></article><article><span class="feature-icon mint">${icon('spark')}</span><h3>The meaning.</h3><p>Ask your vision model to reconstruct a diagram as editable text, shapes and arrows. Check it against the original before using it in a paper.</p><span class="feature-caption">Your provider, your choice</span></article><article><span class="feature-icon peach">${icon('image')}</span><h3>The pixels.</h3><p>Switch between PNG, JPEG and WebP. Resize, choose quality, and set a background for JPEG. Photos stay photos, without tracing.</p><span class="feature-caption">Fast, local format conversion</span></article></div></section>
-    <section class="closing"><div><h2>Made for the figure you don't want to redraw.</h2><p>An open-source experiment by Cheng Chen. Small tools, fewer detours.</p></div><a class="github-link" href="https://github.com/ceasonen/Image2Other" target="_blank" rel="noopener">${icon('github')}Explore the source ${icon('arrow')}</a></section>
-  </main><footer><a class="footer-brand" href="https://ceasonen.github.io/">Cheng Chen</a><a href="/Image2Other/research/">Research project page</a><a href="https://github.com/ceasonen/Image2Other/blob/main/THIRD_PARTY_NOTICES.md">Image2Other · licenses</a><a href="https://github.com/ceasonen/Image2Other/blob/main/docs/research.md">Research & acknowledgements</a></footer>
+    <section id="how-it-works" class="page-section">
+      <div class="container px-0">
+        <h2 class="text-center mt-0">Pick the right conversion</h2>
+        <hr class="divider">
+        <div class="row gx-4 gy-3 text-center">
+          <article class="col-md-4"><div class="mt-3"><div class="mb-2 text-primary">${icon('layers')}</div><h3 class="h5 mb-2">Vector trace</h3><p class="text-muted mb-0">Turn flat artwork into editable SVG paths or native PowerPoint shapes.</p></div></article>
+          <article class="col-md-4"><div class="mt-3"><div class="mb-2 text-primary">${icon('spark')}</div><h3 class="h5 mb-2">Text and diagram rebuild</h3><p class="text-muted mb-0">Review OCR words as editable text or reconstruct a diagram with your chosen vision model.</p></div></article>
+          <article class="col-md-4"><div class="mt-3"><div class="mb-2 text-primary">${icon('image')}</div><h3 class="h5 mb-2">File conversion</h3><p class="text-muted mb-0">Convert common image formats, extract PDF pages, or build PowerPoint slides from a PDF.</p></div></article>
+        </div>
+      </div>
+    </section>
+  </main>
+  <footer class="bg-light py-4">
+    <a href="https://ceasonen.github.io/">Cheng Chen</a>
+    <a href="/Image2Other/research/">Research project</a>
+    <a href="https://github.com/ceasonen/Image2Other/blob/main/THIRD_PARTY_NOTICES.md">Licenses</a>
+    <a href="https://startbootstrap.com/theme/creative">Creative by Start Bootstrap</a>
+  </footer>
   <input id="file-input" type="file" accept="image/*" hidden/><input id="json-input" type="file" accept="application/json,.json" hidden/>
   <dialog id="ai-dialog"><form method="dialog"><div class="dialog-title"><div><span class="eyebrow">AI REBUILD</span><h2>Bring your own vision model.</h2></div><button class="icon-button" aria-label="Close settings">${icon('close')}</button></div><p>Use a chat-completions-compatible vision provider. Your key stays in memory and is sent only to the endpoint you enter. Images leave your browser only when you consent and run AI rebuild.</p><label>API base URL<input id="api-endpoint" type="url" placeholder="https://your-provider.example/v1" autocomplete="off"/></label><label>Vision model<input id="api-model" placeholder="Your provider's vision model ID" autocomplete="off"/></label><label>API key <span>(optional for a local provider)</span><input id="api-key" type="password" placeholder="Session only. Never saved." autocomplete="off"/></label><label class="consent"><input id="ai-consent" type="checkbox"/>I allow my image and the reconstruction prompt to be sent to this provider. Its fees and privacy policy apply.</label><p class="dialog-note">No key? Copy the prompt, use your own AI chat, then import the returned Scene JSON. Providers must allow browser requests (CORS).</p><div class="dialog-actions"><button class="small-button" id="clear-key" type="button">Clear credentials</button><button class="primary compact">Use these settings</button></div></form></dialog>
 `;
@@ -320,7 +361,9 @@ $('#json-input').onchange=async e=>{try{const file=e.target.files[0];if(!file)re
 $('#dropzone').ondragover=e=>{e.preventDefault();$('#dropzone').classList.add('drag-over');};$('#dropzone').ondragleave=()=>$('#dropzone').classList.remove('drag-over');
 $('#dropzone').ondrop=e=>{e.preventDefault();$('#dropzone').classList.remove('drag-over');loadFile(e.dataTransfer.files[0]);};
 document.addEventListener('paste',e=>{if(['INPUT','TEXTAREA'].includes(document.activeElement.tagName))return;const image=[...e.clipboardData.items].find(item=>item.type.startsWith('image/'));if(image)loadFile(image.getAsFile());});
-$('#try-sample').onclick=()=>loadSample().catch(error=>status(error.message,true));
+$('#try-sample').onclick=()=>loadSample()
+  .then(()=>{if(state.source)$('#studio').scrollIntoView({block:'start'});})
+  .catch(error=>status(error.message,true));
 $('#open-example').onclick=async()=>{saveHistory();showScene(sampleScene,{sourceLinked:state.sampleSource});if(state.sourceLinked)try{await compareFeedback();}catch(error){status(error.message,true);return;}status('Editable example ready. This is an authored scene, not an automatic reconstruction.');};
 $('#convert').onclick=convert;$('#cancel').onclick=()=>{state.controller?.abort();state.cancelTrace?.();};
 $('#ocr-build').onclick=buildOcr;
@@ -391,6 +434,5 @@ $('#raster-format').onchange=showRasterPreview;
 window.addEventListener('beforeunload',()=>{if(state.originalUrl)URL.revokeObjectURL(state.originalUrl);state.worker?.terminate();state.controller?.abort();$('#api-key').value='';$('#paddle-token').value='';});
 const fileSection=document.createElement('section');fileSection.id='files';fileSection.className='studio file-studio';
 $('#how-it-works').before(fileSection);
-const filesLink=document.createElement('a');filesLink.href='#files';filesLink.textContent='PDF & slides';$('.header nav').prepend(filesLink);
 mountFileStudio(fileSection,async file=>{setMode('ocr');await loadFile(file);$('#studio').scrollIntoView({behavior:'smooth'});});
 setMode('ocr');
